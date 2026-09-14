@@ -1,0 +1,203 @@
+@import "tailwindcss";
+
+/*
+ * Sistema visual del CRM.
+ *
+ * Criterios: es una herramienta de trabajo que se usa muchas horas al día, a
+ * veces desde el móvil en el taller. Por eso tablas densas, estados
+ * reconocibles de un vistazo por color Y por texto (nunca solo por color), y
+ * tipografía del sistema para que cargue sin depender de internet.
+ */
+
+@theme {
+  --font-sans:
+    system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  /* Tinta: el azul corporativo, usado para navegación y acciones primarias. */
+  --color-ink-50: #eef2ff;
+  --color-ink-100: #e0e7ff;
+  --color-ink-200: #c7d2fe;
+  --color-ink-300: #a5b4fc;
+  --color-ink-400: #818cf8;
+  --color-ink-500: #6366f1;
+  --color-ink-600: #4f46e5;
+  --color-ink-700: #4338ca;
+  --color-ink-800: #3730a3;
+  --color-ink-900: #312e81;
+  --color-ink-950: #1e1b4b;
+}
+
+:root {
+  color-scheme: light;
+  --surface: #ffffff;
+  --surface-muted: #f8fafc;
+  --surface-sunken: #f1f5f9;
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --text: #0f172a;
+  --text-muted: #64748b;
+}
+
+body {
+  background: var(--surface-muted);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/*
+ * btn, input y pill se declaran como @utility y no como clases de componente
+ * porque el resto del sistema las reutiliza con @apply, y en Tailwind v4 @apply
+ * solo acepta utilidades.
+ */
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm
+    font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50
+    focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink-600;
+}
+
+@utility input {
+  @apply block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm
+    text-slate-900 placeholder:text-slate-400
+    focus:border-ink-500 focus:ring-2 focus:ring-ink-100 focus:outline-none
+    disabled:bg-slate-50 disabled:text-slate-500;
+}
+
+@utility pill {
+  @apply inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium
+    whitespace-nowrap ring-1 ring-inset;
+}
+
+@layer components {
+  /* --- Superficies --- */
+  /* min-w-0 no es decorativo: la tarjeta suele ser un elemento de rejilla, y
+     sin él su ancho mínimo lo dicta la tabla que lleva dentro, que estira la
+     columna y saca scroll horizontal a toda la página en móvil. Con min-w-0 la
+     tabla se queda con su propio scroll dentro de .table-wrap, que es lo que
+     se quiere. */
+  .card {
+    @apply min-w-0 rounded-xl border border-slate-200 bg-white shadow-sm;
+  }
+  .card-header {
+    @apply flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 sm:px-5;
+  }
+  .card-title {
+    @apply text-sm font-semibold text-slate-900;
+  }
+  .card-body {
+    @apply px-4 py-4 sm:px-5;
+  }
+
+  /* --- Botones --- */
+  .btn-primary {
+    @apply btn bg-ink-600 text-white hover:bg-ink-700;
+  }
+  .btn-secondary {
+    @apply btn border border-slate-300 bg-white text-slate-700 hover:bg-slate-50;
+  }
+  .btn-ghost {
+    @apply btn text-slate-600 hover:bg-slate-100 hover:text-slate-900;
+  }
+  .btn-danger {
+    @apply btn border border-red-200 bg-white text-red-700 hover:bg-red-50;
+  }
+  .btn-sm {
+    @apply px-2.5 py-1.5 text-xs;
+  }
+
+  /* --- Formularios --- */
+  .label {
+    @apply mb-1 block text-xs font-medium text-slate-600;
+  }
+  .input-error {
+    @apply border-red-400 focus:border-red-500 focus:ring-red-100;
+  }
+  /* Los importes y cantidades se alinean a la derecha y en tabular para que
+     las columnas de cifras se puedan comparar en vertical. */
+  .input-number {
+    @apply input text-right tabular-nums;
+  }
+  .field-error {
+    @apply mt-1 text-xs text-red-600;
+  }
+  .hint {
+    @apply mt-1 text-xs text-slate-500;
+  }
+
+  /* --- Tablas --- */
+  .table-wrap {
+    @apply w-full overflow-x-auto;
+  }
+  .table {
+    @apply w-full border-collapse text-sm;
+  }
+  .table thead th {
+    @apply border-b border-slate-200 bg-slate-50 px-3 py-2 text-left text-xs font-semibold
+      tracking-wide text-slate-500 uppercase whitespace-nowrap;
+  }
+  .table tbody td {
+    @apply border-b border-slate-100 px-3 py-2.5 align-top text-slate-700;
+  }
+  .table tbody tr:hover {
+    @apply bg-slate-50/70;
+  }
+  .num {
+    @apply text-right tabular-nums whitespace-nowrap;
+  }
+
+  /* --- Estados --- */
+  .pill-slate {
+    @apply pill bg-slate-50 text-slate-700 ring-slate-200;
+  }
+  .pill-blue {
+    @apply pill bg-ink-50 text-ink-700 ring-ink-200;
+  }
+  .pill-green {
+    @apply pill bg-emerald-50 text-emerald-700 ring-emerald-200;
+  }
+  .pill-amber {
+    @apply pill bg-amber-50 text-amber-800 ring-amber-200;
+  }
+  .pill-red {
+    @apply pill bg-red-50 text-red-700 ring-red-200;
+  }
+  .pill-violet {
+    @apply pill bg-violet-50 text-violet-700 ring-violet-200;
+  }
+
+  .page-title {
+    @apply text-xl font-semibold tracking-tight text-slate-900;
+  }
+  .page-subtitle {
+    @apply mt-0.5 text-sm text-slate-500;
+  }
+  .empty {
+    @apply px-4 py-12 text-center text-sm text-slate-500;
+  }
+}
+
+/*
+ * Vista de impresión de presupuestos y pedidos. Se imprime desde el navegador
+ * en lugar de generar el PDF en el servidor: menos dependencias, y el
+ * resultado es un PDF de verdad vía "Guardar como PDF" en cualquier equipo.
+ */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+  .print-sheet {
+    box-shadow: none !important;
+    border: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: none !important;
+  }
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+}

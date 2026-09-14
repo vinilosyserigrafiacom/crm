@@ -1,0 +1,445 @@
+// CRM Vinilos y Serigrafía — esquema de datos
+//
+// Convenciones importantes (no cambiar sin leer docs/DECISIONES.md):
+//   * Todos los importes monetarios se guardan como enteros en CÉNTIMOS de euro.
+//     Nunca usamos Float para dinero: el redondeo binario es incompatible con
+//     una facturación que tenga que cuadrar al céntimo.
+//   * Los tipos de IVA se guardan como enteros en PUNTOS BASE: 21% -> 2100.
+//   * Los campos de "enum" se guardan como String porque SQLite no soporta
+//     enums en Prisma. Los valores permitidos se validan con Zod en
+//     src/lib/validation.ts, que es la única fuente de verdad.
+//
+// Para pasar a PostgreSQL basta cambiar el provider de abajo a "postgresql"
+// y ajustar DATABASE_URL: el esquema no usa nada específico de SQLite.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Usuarios y configuración
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  passwordHash String
+  role         String    @default("STAFF") // OWNER | ADMIN | STAFF
+  active       Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  quotes    Quote[]
+  orders    Order[]
+  auditLogs AuditLog[]
+}
+
+/// Datos del emisor. Tabla de una sola fila (id = "default"): hace falta para
+/// las cabeceras de presupuestos y, más adelante, para los registros de
+/// facturación que exige Verifactu.
+model CompanySettings {
+  id           String  @id @default("default")
+  legalName    String  @default("Vinilos y Serigrafía")
+  tradeName    String  @default("vinilosyserigrafia.com")
+  taxId        String  @default("")
+  addressLine1 String  @default("")
+  addressLine2 String  @default("")
+  postalCode   String  @default("")
+  city         String  @default("")
+  province     String  @default("")
+  countryCode  String  @default("ES")
+  phone        String  @default("")
+  email        String  @default("")
+  website      String  @default("https://vinilosyserigrafia.com")
+  logoUrl      String?
+  iban         String  @default("")
+
+  /// Tipo de IVA por defecto en puntos base (2100 = 21%).
+  defaultVatRate Int    @default(2100)
+  /// Días de validez por defecto de un presupuesto.
+  quoteValidDays Int    @default(30)
+  /// Condiciones que se imprimen al pie de los presupuestos.
+  quoteTerms     String @default("")
+
+  updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Clientes
+// ---------------------------------------------------------------------------
+
+model Customer {
+  id   String @id @default(cuid())
+  /// Código corto legible, único y correlativo: C-0001.
+  code String @unique
+  kind String @default("COMPANY") // COMPANY | INDIVIDUAL
+
+  /// Razón social (empresa) o nombre y apellidos (particular). Es el nombre
+  /// que debe aparecer en cualquier documento con valor legal.
+  legalName String
+  /// Nombre comercial o alias con el que se conoce al cliente en el taller.
+  tradeName String?
+
+  taxId       String? // NIF / CIF / VAT intracomunitario
+  /// Verifactu usa un tipo de identificador por cliente.
+  taxIdType   String  @default("NIF") // NIF | VAT_EU | PASSPORT | OTHER
+  countryCode String  @default("ES")
+
+  email   String?
+  phone   String?
+  website String?
+
+  /// Días de vencimiento acordados para sus facturas (0 = al contado).
+  paymentTermsDays Int     @default(0)
+  defaultVatRate   Int     @default(2100)
+  /// Cliente exento de IVA (exportación, entrega intracomunitaria...).
+  vatExempt        Boolean @default(false)
+  /// Causa de la exención. Verifactu exige declararla.
+  vatExemptReason  String?
+  /// Retención de IRPF en puntos base, si aplica.
+  withholdingRate  Int     @default(0)
+
+  notes  String?
+  /// Etiquetas libres separadas por comas ("rotulacion, recurrente").
+  tags   String?
+  active Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contacts  Contact[]
+  addresses Address[]
+  quotes    Quote[]
+  orders    Order[]
+
+  @@index([legalName])
+  @@index([taxId])
+  @@index([active])
+}
+
+model Contact {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  name      String
+  jobTitle  String?
+  email     String?
+  phone     String?
+  notes     String?
+  isPrimary Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+}
+
+model Address {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  kind        String  @default("BILLING") // BILLING | SHIPPING | WORKSHOP
+  label       String?
+  line1       String
+  line2       String?
+  postalCode  String?
+  city        String?
+  province    String?
+  countryCode String  @default("ES")
+  isDefault   Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+}
+
+// ---------------------------------------------------------------------------
+// Catálogo
+// ---------------------------------------------------------------------------
+
+/// Producto o servicio del catálogo. Sirve para rellenar líneas de
+/// presupuesto rápido, pero las líneas guardan siempre su propia copia del
+/// precio y la descripción: cambiar el catálogo no puede alterar un
+/// documento ya emitido.
+model Item {
+  id          String  @id @default(cuid())
+  sku         String  @unique
+  name        String
+  description String?
+  /// Familia para agrupar en el catálogo: "Vinilo", "Serigrafía", "Rótulos"...
+  category    String?
+  kind        String  @default("SERVICE") // PRODUCT | SERVICE
+  /// Unidad de medida en la que se factura: ud, m2, ml, hora...
+  unit        String  @default("ud")
+  /// Precio unitario de venta en céntimos, sin IVA.
+  unitPrice   Int     @default(0)
+  /// Coste unitario en céntimos, para calcular margen.
+  unitCost    Int     @default(0)
+  vatRate     Int     @default(2100)
+  active      Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  quoteLines QuoteLine[]
+  orderLines OrderLine[]
+
+  @@index([category])
+  @@index([active])
+}
+
+// ---------------------------------------------------------------------------
+// Numeración de documentos
+// ---------------------------------------------------------------------------
+
+/// Contador correlativo por tipo de documento, serie y ejercicio.
+///
+/// Verifactu exige que la numeración de facturas sea correlativa y sin
+/// huecos. Por eso el número se reserva dentro de una transacción y solo en
+/// el momento de emitir el documento, nunca mientras es un borrador.
+model NumberSequence {
+  id      String @id @default(cuid())
+  docType String // QUOTE | ORDER | INVOICE
+  series  String @default("A")
+  year    Int
+  /// Siguiente número libre.
+  next    Int    @default(1)
+  /// Dígitos a los que se rellena con ceros: 4 -> 0001.
+  padding Int    @default(4)
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([docType, series, year])
+}
+
+// ---------------------------------------------------------------------------
+// Presupuestos
+// ---------------------------------------------------------------------------
+
+model Quote {
+  id     String  @id @default(cuid())
+  /// Referencia completa y única: PRE-A-2026-0001. Null mientras es borrador.
+  number String? @unique
+  series String  @default("A")
+  year   Int
+
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id])
+  createdById String?
+  createdBy   User?    @relation(fields: [createdById], references: [id])
+
+  status String @default("DRAFT") // DRAFT | SENT | ACCEPTED | REJECTED | EXPIRED | CANCELLED
+
+  issueDate  DateTime  @default(now())
+  validUntil DateTime?
+
+  /// Título del trabajo: "Rotulación furgoneta Renault Kangoo".
+  title         String?
+  /// Referencia del cliente (su número de pedido, por ejemplo).
+  customerRef   String?
+  notes         String?
+  /// Notas internas: no se imprimen.
+  internalNotes String?
+  terms         String?
+
+  // Copia congelada de los datos del emisor y del cliente en el momento de
+  // emitir, para que el documento sea reproducible años después.
+  billingSnapshot String? // JSON
+
+  /// Descuento global en puntos base aplicado sobre la suma de líneas.
+  globalDiscountRate Int @default(0)
+
+  // Totales calculados, todos en céntimos. Se recalculan en cada guardado a
+  // partir de las líneas con src/lib/money.ts; nunca se editan a mano.
+  linesSubtotal    Int    @default(0) // suma de líneas antes de descuento global
+  discountTotal    Int    @default(0) // descuento global en céntimos
+  taxableBase      Int    @default(0) // base imponible
+  vatTotal         Int    @default(0)
+  withholdingTotal Int    @default(0)
+  total            Int    @default(0)
+  /// Desglose de IVA por tipo, como JSON: [{rate,base,vat}]. Se guarda para
+  /// dejar constancia del cálculo exacto que se imprimió.
+  vatBreakdown     String @default("[]")
+
+  currency String @default("EUR")
+
+  sentAt    DateTime?
+  decidedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  lines  QuoteLine[]
+  orders Order[]
+
+  @@index([customerId])
+  @@index([status])
+  @@index([issueDate])
+}
+
+model QuoteLine {
+  id      String @id @default(cuid())
+  quoteId String
+  quote   Quote  @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  /// Orden de la línea dentro del documento.
+  position Int @default(0)
+
+  /// Artículo de origen, solo informativo: los datos de abajo son la copia
+  /// congelada que manda.
+  itemId String?
+  item   Item?   @relation(fields: [itemId], references: [id])
+
+  sku          String?
+  description  String
+  unit         String  @default("ud")
+  /// Cantidad. Es el único valor no entero del documento porque el taller
+  /// vende metros cuadrados y metros lineales; se muestra con 3 decimales.
+  quantity     Float   @default(1)
+  /// Precio unitario sin IVA, en céntimos.
+  unitPrice    Int     @default(0)
+  /// Descuento de línea en puntos base (1000 = 10%).
+  discountRate Int     @default(0)
+  vatRate      Int     @default(2100)
+
+  /// quantity * unitPrice, redondeado a céntimos, antes de descuento.
+  grossAmount    Int @default(0)
+  /// Importe del descuento de línea, en céntimos.
+  discountAmount Int @default(0)
+  /// grossAmount - discountAmount. Es la base imponible de la línea.
+  netAmount      Int @default(0)
+
+  notes String?
+
+  @@index([quoteId])
+}
+
+// ---------------------------------------------------------------------------
+// Pedidos
+// ---------------------------------------------------------------------------
+
+model Order {
+  id     String  @id @default(cuid())
+  /// PED-A-2026-0001.
+  number String? @unique
+  series String  @default("A")
+  year   Int
+
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id])
+  /// Presupuesto del que nace el pedido, si viene de uno.
+  quoteId     String?
+  quote       Quote?   @relation(fields: [quoteId], references: [id])
+  createdById String?
+  createdBy   User?    @relation(fields: [createdById], references: [id])
+
+  /// Estado de taller. DRAFT | CONFIRMED | IN_PRODUCTION | READY | DELIVERED | CANCELLED
+  status String @default("DRAFT")
+
+  orderDate   DateTime  @default(now())
+  /// Fecha comprometida de entrega.
+  dueDate     DateTime?
+  deliveredAt DateTime?
+
+  title         String?
+  customerRef   String?
+  notes         String?
+  internalNotes String?
+
+  billingSnapshot String?
+
+  globalDiscountRate Int @default(0)
+
+  linesSubtotal    Int    @default(0)
+  discountTotal    Int    @default(0)
+  taxableBase      Int    @default(0)
+  vatTotal         Int    @default(0)
+  withholdingTotal Int    @default(0)
+  total            Int    @default(0)
+  vatBreakdown     String @default("[]")
+
+  currency String @default("EUR")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lines OrderLine[]
+
+  @@index([customerId])
+  @@index([status])
+  @@index([orderDate])
+  @@index([quoteId])
+}
+
+model OrderLine {
+  id      String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  position Int @default(0)
+
+  itemId String?
+  item   Item?   @relation(fields: [itemId], references: [id])
+
+  sku          String?
+  description  String
+  unit         String  @default("ud")
+  quantity     Float   @default(1)
+  unitPrice    Int     @default(0)
+  discountRate Int     @default(0)
+  vatRate      Int     @default(2100)
+
+  grossAmount    Int @default(0)
+  discountAmount Int @default(0)
+  netAmount      Int @default(0)
+
+  notes String?
+
+  @@index([orderId])
+}
+
+// ---------------------------------------------------------------------------
+// Trazabilidad
+// ---------------------------------------------------------------------------
+
+/// Registro encadenado de cambios. Cada entrada incluye el hash de la
+/// anterior, de forma que borrar o alterar una entrada rompe la cadena.
+///
+/// Verifactu exige exactamente esta propiedad para los registros de
+/// facturación. Estrenarla ya con presupuestos y pedidos significa que
+/// cuando se añadan facturas la infraestructura está probada.
+model AuditLog {
+  /// Entero autoincremental a propósito: la cadena de hashes necesita un
+  /// orden total e inequívoco, y un cuid() no es ordenable cronológicamente.
+  id Int @id @default(autoincrement())
+
+  at     DateTime @default(now())
+  userId String?
+  user   User?    @relation(fields: [userId], references: [id])
+
+  /// Nombre del modelo afectado: "Customer", "Quote"...
+  entity   String
+  entityId String
+  action   String // CREATE | UPDATE | DELETE | STATUS_CHANGE | ISSUE | LOGIN
+  summary  String
+
+  /// Detalle del cambio en JSON (campos antes/después).
+  dataJson String?
+
+  /// Hash de la entrada anterior de la cadena.
+  prevHash String?
+  /// SHA-256 del contenido de esta entrada más prevHash.
+  hash     String
+
+  @@index([entity, entityId])
+  @@index([at])
+}
