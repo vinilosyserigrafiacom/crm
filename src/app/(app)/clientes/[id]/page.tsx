@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { formatCents, formatRate } from "@/lib/money";
-import { formatDate, formatDateTime, parseTags } from "@/lib/format";
+import { documentNumber, formatDate, formatDateTime, parseTags } from "@/lib/format";
 import { CUSTOMER_KIND_LABELS, type CustomerKind } from "@/lib/validation";
 import { OrderStatusPill, QuoteStatusPill } from "@/components/status-pill";
 import { checkTaxId } from "@/lib/tax-id";
@@ -65,6 +65,7 @@ export default async function CustomerPage({
         select: {
           id: true,
           number: true,
+          wooNumber: true,
           title: true,
           status: true,
           orderDate: true,
@@ -118,6 +119,9 @@ export default async function CustomerPage({
               {CUSTOMER_KIND_LABELS[customer.kind as CustomerKind] ?? customer.kind}
             </span>
             {!customer.active && <span className="pill-slate">Archivado</span>}
+            {customer.source === "WOOCOMMERCE" && (
+              <span className="pill-violet">De la tienda</span>
+            )}
             {tags.map((tag) => (
               <span key={tag} className="pill-blue">
                 {tag}
@@ -273,7 +277,7 @@ export default async function CustomerPage({
                             href={`/pedidos/${order.id}`}
                             className="font-mono text-xs font-medium text-ink-700 hover:underline"
                           >
-                            {order.number ?? "Borrador"}
+                            {documentNumber(order)}
                           </Link>
                         </td>
                         <td className="text-sm">{order.title ?? "—"}</td>

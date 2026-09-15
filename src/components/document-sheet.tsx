@@ -1,5 +1,5 @@
 import { formatCents, formatQuantity, formatRate, parseVatBreakdown } from "@/lib/money";
-import { formatDate } from "@/lib/format";
+import { documentNumber, formatDate } from "@/lib/format";
 import { parseBillingSnapshot } from "@/lib/documents";
 
 /**
@@ -27,6 +27,7 @@ export interface SheetLine {
 export interface SheetDocument {
   kind: "QUOTE" | "ORDER";
   number: string | null;
+  wooNumber?: string | null;
   title: string | null;
   customerRef: string | null;
   notes: string | null;
@@ -120,7 +121,7 @@ export function DocumentSheet({
             {isQuote ? "Presupuesto" : "Pedido"}
           </p>
           <p className="font-mono text-lg font-semibold text-slate-900">
-            {document.number ?? "Borrador"}
+            {documentNumber(document)}
           </p>
           <p className="mt-1 text-xs text-slate-600">
             {isQuote ? "Fecha" : "Fecha del pedido"}: {formatDate(document.primaryDate)}

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import { formatCents } from "@/lib/money";
-import { describeDueDate, formatDate, truncate } from "@/lib/format";
+import { describeDueDate, documentNumber, formatDate, truncate } from "@/lib/format";
 import {
   BOARD_COLUMNS,
   ORDER_STATUS_LABELS,
@@ -15,6 +15,7 @@ import { moveCardAction, type CardActionResult } from "./actions";
 export interface BoardCard {
   id: string;
   number: string | null;
+  wooNumber: string | null;
   title: string | null;
   customerId: string;
   customerName: string;
@@ -98,7 +99,7 @@ function Card({
             href={`/pedidos/${card.id}`}
             className="font-mono text-xs font-medium text-ink-700 hover:underline"
           >
-            {card.number ?? "Borrador"}
+            {documentNumber(card)}
           </Link>
           <span className="text-xs font-medium tabular-nums text-slate-600">
             {formatCents(card.total)}
@@ -128,7 +129,7 @@ function Card({
 
         {destinos.length > 0 && (
           <label className="mt-2 block">
-            <span className="sr-only">Mover {card.number ?? "el borrador"} a otra columna</span>
+            <span className="sr-only">Mover {documentNumber(card)} a otra columna</span>
             <select
               className="input py-1 text-xs"
               value=""

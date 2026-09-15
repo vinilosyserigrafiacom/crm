@@ -100,3 +100,20 @@ export function initials(name: string): string {
   const parts = name.trim().split(/\s+/).slice(0, 2);
   return parts.map((p) => p[0]?.toUpperCase() ?? "").join("") || "?";
 }
+
+/**
+ * Número con el que se identifica un documento en pantalla.
+ *
+ * Un pedido importado de la tienda no tiene número del CRM —no gasta serie
+ * hasta que se confirma aquí—, pero sí el de la tienda. Sin esto se mostraría
+ * como «Borrador», que para el taller es engañoso: es un pedido de verdad, con
+ * su número, solo que el número es de otro sitio.
+ */
+export function documentNumber(documento: {
+  number: string | null;
+  wooNumber?: string | null;
+}): string {
+  if (documento.number) return documento.number;
+  if (documento.wooNumber) return `#${documento.wooNumber}`;
+  return "Borrador";
+}

@@ -40,6 +40,7 @@ model User {
   orders    Order[]
   auditLogs AuditLog[]
   segments  Segment[]
+  syncRuns  WooSyncRun[]
 }
 
 /// Datos del emisor. Tabla de una sola fila (id = "default"): hace falta para
@@ -111,6 +112,15 @@ model Customer {
   /// Etiquetas libres separadas por comas ("rotulacion, recurrente").
   tags   String?
   active Boolean @default(true)
+
+  /// Id del cliente en WooCommerce, si vino de la tienda. Es la referencia
+  /// estable para reconocerlo en las siguientes sincronizaciones: el correo
+  /// puede cambiar, el id no.
+  wooId    Int?      @unique
+  /// De dónde salió la ficha: CRM | WOOCOMMERCE.
+  source   String    @default("CRM")
+  /// Última vez que la sincronización tocó esta ficha.
+  syncedAt DateTime?
 
   // --- Comunicaciones comerciales ---
   //
@@ -371,6 +381,21 @@ model Order {
   /// soltar una tarjeta, para poder insertar entre dos sin tocar el resto.
   boardPosition Int @default(0)
 
+  // --- Origen ---
+  //
+  // Un pedido importado NO consume número de la serie del CRM: conserva el de
+  // la tienda en wooNumber y `number` sigue vacío hasta que alguien lo confirme
+  // aquí. Así un pedido que la tienda acabe cancelando no deja un hueco en una
+  // serie que Verifactu exige correlativa.
+  source    String    @default("CRM") // CRM | WOOCOMMERCE
+  wooId     Int?      @unique
+  /// Número que la tienda enseña al cliente (no siempre coincide con el id).
+  wooNumber String?
+  /// Último estado visto en la tienda. Sirve para saber si el taller ha movido
+  /// el pedido por su cuenta desde la última sincronización.
+  wooStatus String?
+  syncedAt  DateTime?
+
   orderDate   DateTime  @default(now())
   /// Fecha comprometida de entrega.
   dueDate     DateTime?
@@ -404,6 +429,7 @@ model Order {
   @@index([status])
   @@index([orderDate])
   @@index([dueDate])
+  @@index([source])
   @@index([quoteId])
   @@index([status, boardPosition])
 }
@@ -533,4 +559,43 @@ model SegmentMember {
 
   @@unique([segmentId, customerId])
   @@index([customerId])
+}
+
+// ---------------------------------------------------------------------------
+// Sincronización con WooCommerce
+// ---------------------------------------------------------------------------
+
+/// Registro de cada sincronización con la tienda.
+///
+/// Guarda desde cuándo se pidieron los cambios para que la siguiente pasada
+/// solo traiga lo nuevo, y deja constancia de lo que hizo cada una. Cuando algo
+/// no cuadre con la tienda, esto es lo primero que hay que mirar.
+model WooSyncRun {
+  id         String    @id @default(cuid())
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  /// RUNNING | OK | ERROR
+  status     String    @default("RUNNING")
+
+  /// Qué se pidió a la tienda: los cambios posteriores a esta fecha. Null en
+  /// una importación completa.
+  since DateTime?
+
+  customersCreated Int @default(0)
+  customersUpdated Int @default(0)
+  ordersCreated    Int @default(0)
+  ordersUpdated    Int @default(0)
+  /// Pedidos cuyo estado en la tienda se ignoró porque el taller ya los había
+  /// movido por su cuenta.
+  ordersSkipped    Int @default(0)
+
+  /// Mensaje del fallo, si lo hubo.
+  error    String?
+  /// Avisos que no impiden terminar: un pedido sin cliente, un importe raro...
+  warnings String  @default("[]")
+
+  triggeredById String?
+  triggeredBy   User?   @relation(fields: [triggeredById], references: [id])
+
+  @@index([startedAt])
 }

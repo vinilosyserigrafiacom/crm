@@ -6,7 +6,7 @@ import { requireUser } from "@/lib/auth";
 import { getCompanySettings } from "@/lib/company";
 import { DocumentSheet } from "@/components/document-sheet";
 import { OrderStatusPill } from "@/components/status-pill";
-import { describeDueDate, formatDate, formatDateTime, toDateInput } from "@/lib/format";
+import { describeDueDate, documentNumber, formatDate, formatDateTime, toDateInput } from "@/lib/format";
 import { formatAddressLine } from "@/lib/documents";
 import { companyToSheetParty, orderToSheet } from "@/lib/sheet";
 import { ORDER_STATUS_LABELS, ORDER_TRANSITIONS, type OrderStatus } from "@/lib/validation";
@@ -14,6 +14,7 @@ import {
   changeOrderStatusAction,
   deleteOrderDraftAction,
   updateOrderDueDateAction,
+  updateOrderInternalNotesAction,
 } from "../actions";
 
 export async function generateMetadata({
@@ -85,16 +86,27 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   const setDueDate = updateOrderDueDateAction.bind(null, order.id);
   const deleteDraft = deleteOrderDraftAction.bind(null, order.id);
 
-  const editable = status !== "CANCELLED" && status !== "DELIVERED";
+  // Las líneas de un pedido de la tienda las manda WooCommerce y la siguiente
+  // sincronización las reescribe, así que aquí no se editan.
+  const fromStore = order.source === "WOOCOMMERCE";
+  const editable = status !== "CANCELLED" && status !== "DELIVERED" && !fromStore;
   const contact = order.customer.contacts[0] ?? null;
+  /** La entrega y las notas se tocan aunque el pedido venga de la tienda. */
+  const schedulable = status !== "CANCELLED" && status !== "DELIVERED";
+  /** Sin editor, las notas de un pedido de la tienda se escriben aquí mismo. */
+  const notesHere = fromStore && schedulable;
+  const setInternalNotes = updateOrderInternalNotesAction.bind(null, order.id);
 
   return (
     <div className="space-y-5">
       <div className="no-print flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="flex items-center gap-2 font-mono text-xs text-slate-500">
-            {order.number ?? "Sin numerar"}
+          <p className="flex flex-wrap items-center gap-2 font-mono text-xs text-slate-500">
+            {documentNumber(order)}
             <OrderStatusPill status={order.status} />
+            {order.source === "WOOCOMMERCE" && (
+              <span className="pill-violet">Importado de la tienda</span>
+            )}
           </p>
           <h1 className="page-title">{order.title ?? "Pedido"}</h1>
           <p className="page-subtitle">
@@ -115,6 +127,12 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
               Editar
             </Link>
           )}
+          {fromStore && (
+            <p className="max-w-xs text-xs text-slate-500">
+              Las líneas y los importes los manda la tienda. Aquí se cambian el estado, la
+              entrega y las notas internas.
+            </p>
+          )}
         </div>
       </div>
 
@@ -129,7 +147,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
               ? `Entregado el ${formatDate(order.deliveredAt)}`
               : describeDueDate(order.dueDate)}
           </p>
-          {editable && (
+          {schedulable && (
             <form action={setDueDate} className="mt-2 flex items-center gap-2">
               <input
                 type="date"
@@ -224,14 +242,34 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
       />
 
       <div className="no-print grid gap-5 lg:grid-cols-2">
-        {order.internalNotes && (
+        {(order.internalNotes || notesHere) && (
           <section className="card">
             <div className="card-header">
               <h2 className="card-title">Notas internas</h2>
+              <p className="text-xs text-slate-500">No salen en la hoja del cliente.</p>
             </div>
-            <div className="card-body">
-              <p className="text-sm whitespace-pre-wrap text-slate-700">{order.internalNotes}</p>
-            </div>
+            {notesHere ? (
+              <form action={setInternalNotes} className="card-body space-y-2">
+                <label htmlFor="internalNotes" className="sr-only">
+                  Notas internas
+                </label>
+                <textarea
+                  id="internalNotes"
+                  name="internalNotes"
+                  rows={4}
+                  defaultValue={order.internalNotes ?? ""}
+                  className="input"
+                  placeholder="Lo que haga falta recordar de este pedido…"
+                />
+                <button type="submit" className="btn-secondary btn-sm">
+                  Guardar notas
+                </button>
+              </form>
+            ) : (
+              <div className="card-body">
+                <p className="text-sm whitespace-pre-wrap text-slate-700">{order.internalNotes}</p>
+              </div>
+            )}
           </section>
         )}
 

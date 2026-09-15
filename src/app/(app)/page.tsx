@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { formatCents } from "@/lib/money";
-import { describeDueDate, formatDate, formatDateTime, truncate } from "@/lib/format";
+import { describeDueDate, documentNumber, formatDate, formatDateTime, truncate } from "@/lib/format";
 import { OrderStatusPill } from "@/components/status-pill";
 import type { OrderStatus } from "@/lib/validation";
 
@@ -93,6 +93,7 @@ export default async function DashboardPage() {
       select: {
         id: true,
         number: true,
+        wooNumber: true,
         title: true,
         status: true,
         dueDate: true,
@@ -191,7 +192,7 @@ export default async function DashboardPage() {
                           href={`/pedidos/${order.id}`}
                           className="font-mono text-xs font-medium text-ink-700 hover:underline"
                         >
-                          {order.number ?? "Borrador"}
+                          {documentNumber(order)}
                         </Link>
                         {order.title && (
                           <span className="block text-xs text-slate-500">

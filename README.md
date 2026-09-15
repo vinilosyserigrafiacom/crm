@@ -29,6 +29,10 @@ todos los datos se quedan en un fichero o en una base de datos que controlas tú
   fijas elegidas a mano o grupos por reglas (etiqueta, tipo de cliente,
   provincia, actividad reciente, gasto acumulado) que se recalculan solos. La
   lista se exporta en CSV para Mailchimp, Brevo o el gestor que uses.
+- **WooCommerce.** Trae los clientes y los pedidos de la tienda, en un solo
+  sentido: el CRM nunca escribe nada en WooCommerce. Los pedidos importados
+  conservan el número de la tienda y no gastan numeración de la serie; el
+  estado que les hayas puesto en el taller manda sobre el que diga la tienda.
 - **Catálogo.** Los trabajos y materiales que se repiten, con precio, coste y
   margen, para rellenar líneas de presupuesto sin teclear.
 - **Resumen.** Lo que hay abierto: presupuestos sin respuesta, pedidos en curso,
@@ -78,6 +82,7 @@ hayas visto cómo funciona.
 | `npm run build` / `npm start` | Compilar y servir en producción |
 | `npm run check` | Tipos, linter y pruebas de una tacada |
 | `npm test` | Pruebas de importes, NIF, segmentación y tablero |
+| `npm run test:woo` | Prueba el importador de WooCommerce contra una tienda simulada |
 | `npm run db:migrate` | Crear una migración nueva tras tocar el esquema |
 | `npm run db:deploy` | Aplicar migraciones en producción |
 | `npm run db:seed` | Datos iniciales (no hace nada si ya hay usuarios) |
@@ -163,6 +168,65 @@ consentimiento expreso, que es lo que corresponde a una newsletter comercial;
 se puede desactivar para envíos amparados en la relación con el cliente
 (art. 21.2 LSSI), y la pantalla avisa cuando un grupo está en ese modo.
 
+## Conectar la tienda de WooCommerce
+
+La integración es de solo lectura y en un solo sentido: el CRM lee de la tienda
+y nunca le escribe. Los pedidos siguen gestionándose en WooCommerce; aquí se ven
+junto a los del mostrador, entran en el tablero del taller y suman en la ficha
+del cliente.
+
+**1. Crear las claves en la tienda.** En WordPress: *WooCommerce → Ajustes →
+Avanzado → API REST → Añadir clave*. Permisos **solo lectura**. Apunta la
+*consumer key* y el *consumer secret*: el secreto solo se enseña una vez.
+
+**2. Ponerlas en el `.env` del CRM** (nunca en la base de datos: un volcado o una
+copia de seguridad se llevaría la llave de la tienda):
+
+```env
+WOO_URL="https://vinilosyserigrafia.com"
+WOO_CONSUMER_KEY="ck_..."
+WOO_CONSUMER_SECRET="cs_..."
+```
+
+Las claves viajan por cabecera `Authorization`, así que la tienda tiene que
+estar en HTTPS. Reinicia el CRM después de tocar el `.env`.
+
+**3. Importar.** En *Ajustes → WooCommerce* hay un botón para probar la conexión
+y dos para importar: la incremental trae solo lo modificado desde la última vez
+y la completa lo revisa todo. La pantalla guarda el historial de las últimas
+sincronizaciones con lo que se creó, lo que se actualizó y los avisos.
+
+Para importar de forma automática, un `cron` que llame a la importación
+incremental cada hora es suficiente; de momento hay que lanzarla desde la
+pantalla.
+
+### Qué hace y qué no hace al importar
+
+- **No gasta numeración.** Un pedido importado conserva el número de la tienda
+  (`#1042`) y no recibe número de la serie del CRM. Si la tienda acaba anulando
+  el pedido, la serie no se queda con un hueco. En cuanto lo confirmas aquí,
+  toma su número correlativo como cualquier otro.
+- **El taller manda sobre la tienda.** Si mueves una tarjeta de columna, la
+  siguiente sincronización respeta dónde la has puesto. Solo aplica el estado de
+  la tienda mientras el pedido no se haya tocado aquí.
+- **Las líneas las manda la tienda.** Importes y líneas se refrescan en cada
+  sincronización, porque es lo que solo sabe la tienda. Por eso un pedido
+  importado no se puede editar en el CRM: lo que sí puedes cambiar es el estado,
+  la fecha de entrega y las notas internas, y eso no lo pisa nadie.
+- **Comprar no es consentir.** Los clientes importados entran sin consentimiento
+  para newsletters. Se marca a mano en su ficha cuando conste que lo dieron. Una
+  baja previa se respeta: importar no la levanta.
+- **Enlaza en vez de duplicar.** Si un cliente de la tienda ya estaba dado de
+  alta a mano con el mismo correo, se enlazan los dos y se conservan las
+  etiquetas, las notas y el consentimiento que ya tuviera.
+- **El IVA se deduce de cada línea** a partir del impuesto que manda la tienda y
+  se ajusta al tipo legal más cercano (0, 4, 10 o 21%). Los totales los vuelve a
+  calcular el motor del CRM; si no cuadran con los de la tienda, la
+  sincronización lo deja anotado como aviso en vez de tragárselo.
+
+`npm run test:woo` levanta una tienda simulada y comprueba todo lo anterior de
+extremo a extremo contra una base de datos temporal.
+
 ## Qué falta para facturar
 
 El modelo de datos ya contempla las facturas (`NumberSequence` tiene el tipo
@@ -187,6 +251,7 @@ prisma/
   seed.ts              Datos iniciales
 scripts/
   setup.mjs            Instalación en un solo comando
+  prueba-woocommerce.ts  Importador contra una tienda simulada, de punta a punta
 src/
   app/
     (app)/             Páginas con sesión: resumen, clientes, presupuestos,
@@ -198,6 +263,9 @@ src/
     money.ts           Cálculo de importes (con pruebas)
     segments.ts        Reglas y resolución de destinatarios (con pruebas)
     board.ts           Colocación de tarjetas en el tablero (con pruebas)
+    woocommerce.ts     Cliente de la API de la tienda
+    woo-mapping.ts     Traducción de clientes y pedidos de Woo (con pruebas)
+    woo-sync.ts        Importación y reconciliación
     orders-server.ts   Cambios de estado del pedido, compartidos
     documents.ts       Lógica común de presupuestos y pedidos
     numbering.ts       Series correlativas

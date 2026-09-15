@@ -23,7 +23,11 @@ export default async function EditOrderPage({
   });
   if (!order) notFound();
 
-  // Un pedido entregado o anulado está cerrado; la acción también lo rechaza.
+  // Un pedido de la tienda, o uno entregado o anulado, está cerrado a la
+  // edición; la acción también lo rechaza.
+  if (order.source === "WOOCOMMERCE") {
+    redirect(`/pedidos/${order.id}`);
+  }
   if (order.status === "CANCELLED" || order.status === "DELIVERED") {
     redirect(`/pedidos/${order.id}`);
   }

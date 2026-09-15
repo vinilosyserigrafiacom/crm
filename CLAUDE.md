@@ -49,6 +49,13 @@ ajuste del grupo. La baja del cliente arrastra también a sus contactos. Y las
 listas de destinatarios no se guardan nunca: se resuelven al mirarlas, para que
 una baja no dependa de refrescar nada.
 
+**La tienda no pisa el taller.** Un pedido importado de WooCommerce conserva el
+número de la tienda y no gasta numeración de la serie. La sincronización
+refresca siempre las líneas y los importes —eso solo lo sabe la tienda— pero el
+estado solo se aplica mientras el taller no lo haya tocado: ver `decideStatus()`
+en `src/lib/woo-sync.ts`. Y nunca toca `internalNotes`, `dueDate`,
+`boardPosition`, las etiquetas, el consentimiento ni la baja de newsletter.
+
 ## Cómo está organizado
 
 - Las mutaciones son **server actions** en `actions.ts` junto a cada módulo, no
@@ -107,6 +114,32 @@ propósito: `recipientsForCustomer()` es pura y decide quién recibe un correo
 —esa es la que hay que probar cuando la toques—, y `resolveAudience()` pone la
 consulta alrededor. La exportación a CSV neutraliza las fórmulas (`=`, `+`, `-`,
 `@`) porque los nombres los teclea una persona y el fichero se abre en Excel.
+
+## WooCommerce
+
+La integración es de solo lectura y va en tres capas separadas a propósito:
+`woocommerce.ts` habla con la API (paginación por `X-WP-TotalPages`, errores en
+castellano), `woo-mapping.ts` traduce sin tocar la base de datos —es la parte
+que hay que probar cuando cambie algo— y `woo-sync.ts` pone las transacciones
+alrededor, una por registro para que un pedido raro no tire abajo los cien
+anteriores.
+
+Las credenciales viven **solo en variables de entorno**, nunca en la base de
+datos: una clave de la tienda lee el fichero entero de clientes, y guardada en
+la base viajaría en cada copia de seguridad. `readWooConfig()` es el único sitio
+que las lee.
+
+Un pedido importado **no se puede editar** en el CRM: sus líneas las reescribe
+la siguiente sincronización, así que ofrecer el editor sería prometer un cambio
+que se deshace solo. La ficha ofrece en su lugar estado, fecha de entrega y
+notas internas, que son suyas. Si añades otro campo que el taller pueda tocar en
+un pedido, comprueba que `upsertOrder()` no lo sobrescriba.
+
+`npm run test:woo` (en `scripts/prueba-woocommerce.ts`) levanta una tienda
+simulada y ejecuta el importador de verdad contra una base de datos temporal
+que crea y borra sola. Es la prueba que cubre la reconciliación: reimportar sin
+duplicar, no gastar numeración, respetar el estado del taller y enlazar por
+correo con un cliente que ya existía. Si tocas `woo-sync.ts`, pásala.
 
 ## Lo que viene después
 

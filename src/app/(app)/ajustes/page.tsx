@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { getCompanySettings } from "@/lib/company";
 import { verifyAuditChain } from "@/lib/audit";
+import { isWooConfigured } from "@/lib/woocommerce";
 import { formatDateTime } from "@/lib/format";
 import { USER_ROLE_LABELS, type UserRole } from "@/lib/validation";
 import { CompanyForm, NewUserForm, PasswordForm } from "./settings-forms";
@@ -18,6 +20,8 @@ export const metadata: Metadata = { title: "Ajustes" };
 export default async function SettingsPage() {
   const current = await requireUser();
   const canManage = current.role === "OWNER" || current.role === "ADMIN";
+
+  const wooConfigurada = isWooConfigured();
 
   const [company, users, sequences, chain] = await Promise.all([
     getCompanySettings(),
@@ -42,6 +46,28 @@ export default async function SettingsPage() {
           Los datos del emisor solo los puede cambiar una cuenta de administración.
         </section>
       )}
+
+      <section className="card">
+        <div className="card-header">
+          <h2 className="card-title">Integraciones</h2>
+        </div>
+        <div className="card-body">
+          <Link
+            href="/ajustes/woocommerce"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2.5 transition-colors hover:border-ink-300"
+          >
+            <span>
+              <span className="block text-sm font-medium text-slate-900">WooCommerce</span>
+              <span className="block text-xs text-slate-500">
+                Importar clientes y pedidos de la tienda
+              </span>
+            </span>
+            <span className={wooConfigurada ? "pill-green" : "pill-slate"}>
+              {wooConfigurada ? "Configurada" : "Sin configurar"}
+            </span>
+          </Link>
+        </div>
+      </section>
 
       <div className="grid gap-5 lg:grid-cols-2">
         <section className="card">

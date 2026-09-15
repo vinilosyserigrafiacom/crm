@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import { formatCents } from "@/lib/money";
-import { toDateInput, truncate } from "@/lib/format";
+import { documentNumber, toDateInput, truncate } from "@/lib/format";
 import { ORDER_STATUS_LABELS, type OrderStatus } from "@/lib/validation";
 import { setDueDateAction, type CardActionResult } from "./actions";
 import type { BoardCard } from "./board";
@@ -66,14 +66,14 @@ function Chip({
         e.dataTransfer.setData("text/plain", card.id);
         onDragStart();
       }}
-      title={`${card.number ?? "Borrador"} · ${card.customerName} · ${formatCents(card.total)}`}
+      title={`${documentNumber(card)} · ${card.customerName} · ${formatCents(card.total)}`}
       className={`block truncate rounded px-1.5 py-1 text-xs ring-1 ring-inset ${
         ESTADO_TONO[card.status] ?? ESTADO_TONO.DRAFT
       } ${movible ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${
         pendiente ? "animate-pulse" : ""
       }`}
     >
-      <span className="font-medium">{card.number ?? "Borrador"}</span>{" "}
+      <span className="font-medium">{documentNumber(card)}</span>{" "}
       <span className="opacity-80">{truncate(card.title ?? card.customerName, 22)}</span>
     </Link>
   );

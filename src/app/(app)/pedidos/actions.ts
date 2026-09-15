@@ -85,9 +85,19 @@ export async function updateOrderAction(
 
   const existing = await prisma.order.findUnique({
     where: { id: orderId },
-    select: { status: true, total: true, number: true },
+    select: { status: true, total: true, number: true, source: true },
   });
   if (!existing) return { error: "El pedido ya no existe." };
+  // Las líneas de un pedido de la tienda las reescribe la siguiente
+  // sincronización: dejar editarlas aquí sería prometer un cambio que se
+  // deshace solo.
+  if (existing.source === "WOOCOMMERCE") {
+    return {
+      error:
+        "Este pedido viene de la tienda y sus líneas las manda WooCommerce. " +
+        "Aquí puedes cambiar el estado, la entrega y las notas internas.",
+    };
+  }
   if (existing.status === "CANCELLED" || existing.status === "DELIVERED") {
     return {
       error:
@@ -227,6 +237,44 @@ export async function updateOrderDueDateAction(
   });
 
   revalidatePath("/pedidos");
+  revalidatePath(`/pedidos/${orderId}`);
+}
+
+/**
+ * Cambia las notas internas sin pasar por el editor.
+ *
+ * Existe por los pedidos de la tienda: su editor está cerrado porque las líneas
+ * las manda WooCommerce, pero el taller sigue necesitando apuntar sus cosas.
+ */
+export async function updateOrderInternalNotesAction(
+  orderId: string,
+  formData: FormData,
+): Promise<void> {
+  const user = await requireUser();
+
+  const internalNotes = text(formData, "internalNotes").trim() || null;
+
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { number: true, wooNumber: true, status: true },
+  });
+  if (!order) return;
+  // Un pedido cerrado no se anota: lo que pone ya es historia.
+  if (order.status === "CANCELLED" || order.status === "DELIVERED") return;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.order.update({ where: { id: orderId }, data: { internalNotes } });
+    await recordAudit(tx, {
+      userId: user.id,
+      entity: "Order",
+      entityId: orderId,
+      action: "UPDATE",
+      summary: `Notas internas del pedido ${order.number ?? `#${order.wooNumber ?? "(borrador)"}`} ${
+        internalNotes ? "actualizadas" : "borradas"
+      }`,
+    });
+  });
+
   revalidatePath(`/pedidos/${orderId}`);
 }
 

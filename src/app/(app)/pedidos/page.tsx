@@ -6,7 +6,7 @@ import { requireUser } from "@/lib/auth";
 import { Pagination, readPage } from "@/components/pagination";
 import { OrderStatusPill } from "@/components/status-pill";
 import { formatCents } from "@/lib/money";
-import { daysUntil, formatDate, truncate } from "@/lib/format";
+import { daysUntil, documentNumber, formatDate, truncate } from "@/lib/format";
 import { ORDER_STATUS_LABELS, ORDER_STATUSES, type OrderStatus } from "@/lib/validation";
 
 export const metadata: Metadata = { title: "Pedidos" };
@@ -38,6 +38,7 @@ export default async function OrdersPage({
       ? {
           OR: [
             { number: { contains: q } },
+            { wooNumber: { contains: q } },
             { title: { contains: q } },
             { customerRef: { contains: q } },
             { customer: { legalName: { contains: q } } },
@@ -58,6 +59,8 @@ export default async function OrdersPage({
       select: {
         id: true,
         number: true,
+        wooNumber: true,
+        source: true,
         title: true,
         status: true,
         orderDate: true,
@@ -182,8 +185,11 @@ export default async function OrdersPage({
                             href={`/pedidos/${order.id}`}
                             className="font-mono text-xs font-medium text-ink-700 hover:underline"
                           >
-                            {order.number ?? "Borrador"}
+                            {documentNumber(order)}
                           </Link>
+                          {order.source === "WOOCOMMERCE" && (
+                            <span className="pill-violet mt-1">Tienda</span>
+                          )}
                         </td>
                         <td>
                           <Link

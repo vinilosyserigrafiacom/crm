@@ -18,6 +18,7 @@ const ABIERTOS: OrderStatus[] = ["DRAFT", "CONFIRMED", "IN_PRODUCTION", "READY"]
 const cardSelect = {
   id: true,
   number: true,
+  wooNumber: true,
   title: true,
   status: true,
   dueDate: true,
@@ -32,6 +33,7 @@ function toCard(order: OrderRow): BoardCard {
   return {
     id: order.id,
     number: order.number,
+    wooNumber: order.wooNumber,
     title: order.title,
     customerId: order.customerId,
     customerName: order.customer.tradeName ?? order.customer.legalName,
