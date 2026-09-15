@@ -6,7 +6,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { hashPassword, requireRole, requireUser } from "@/lib/auth";
 import { recordAudit } from "@/lib/audit";
-import { companySettingsSchema, USER_ROLES } from "@/lib/validation";
+import { companySettingsSchema, USER_ROLE_LABELS, USER_ROLES } from "@/lib/validation";
 import {
   int,
   parseForm,
@@ -138,13 +138,19 @@ export async function toggleUserActiveAction(
 ): Promise<void> {
   const current = await requireRole("OWNER", "ADMIN");
   const userId = text(formData, "userId");
-  if (!userId || userId === current.id) return;
+  if (!userId) return;
 
   const target = await prisma.user.findUnique({
     where: { id: userId },
-    select: { active: true, email: true },
+    select: { id: true, role: true, active: true, email: true },
   });
   if (!target) return;
+  if (puedeGestionar(current, target)) return;
+
+  // Desactivar al último propietario dejaría el taller sin quien administre.
+  if (target.active && target.role === "OWNER" && (await otrosPropietariosActivos(target.id)) === 0) {
+    return;
+  }
 
   await prisma.$transaction(async (tx) => {
     await tx.user.update({
@@ -161,6 +167,136 @@ export async function toggleUserActiveAction(
   });
 
   revalidatePath("/ajustes");
+}
+
+/**
+ * Comprueba si se puede tocar la cuenta `target` desde la cuenta `actor`.
+ *
+ * Dos reglas, y las dos son de seguridad y no de cortesía: una cuenta de
+ * administración no manda sobre una de propietario —si no, ascender no
+ * significaría nada, le bastaría con cambiarle la contraseña al jefe— y nadie
+ * se toca a sí mismo, que es como uno se deja fuera sin querer.
+ */
+function puedeGestionar(
+  actor: { id: string; role: string },
+  target: { id: string; role: string },
+): string | null {
+  if (actor.id === target.id) return "Sobre tu propia cuenta no puedes hacer esto.";
+  if (target.role === "OWNER" && actor.role !== "OWNER") {
+    return "Solo una cuenta de propietario puede tocar otra cuenta de propietario.";
+  }
+  return null;
+}
+
+/** Cuenta los propietarios activos que quedarían sin contar a `exceptoId`. */
+async function otrosPropietariosActivos(exceptoId: string): Promise<number> {
+  return prisma.user.count({
+    where: { role: "OWNER", active: true, id: { not: exceptoId } },
+  });
+}
+
+/**
+ * Cambia el perfil de una cuenta.
+ *
+ * El taller crece: quien entró como taller acaba llevando los presupuestos. Sin
+ * esto habría que borrar la cuenta y crearla otra vez, y se perdería a quién
+ * pertenecen los documentos que ya firmó.
+ */
+export async function updateUserRoleAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const current = await requireRole("OWNER", "ADMIN");
+
+  const userId = text(formData, "userId");
+  const parsedRole = z.enum(USER_ROLES).safeParse(text(formData, "role"));
+  if (!userId || !parsedRole.success) return { error: "Perfil no válido." };
+  const role = parsedRole.data;
+
+  const target = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, role: true, email: true, active: true },
+  });
+  if (!target) return { error: "Esa cuenta ya no existe." };
+
+  const veto = puedeGestionar(current, target);
+  if (veto) return { error: veto };
+
+  if (role === "OWNER" && current.role !== "OWNER") {
+    return { error: "Solo una cuenta de propietario puede nombrar a otra." };
+  }
+  if (role === target.role) return { message: "Ese ya era su perfil." };
+
+  // Quitarle el propietario al último que queda dejaría el taller sin nadie
+  // que pueda volver a darlo.
+  if (target.role === "OWNER" && (await otrosPropietariosActivos(target.id)) === 0) {
+    return { error: "Es la única cuenta de propietario que queda activa." };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({ where: { id: userId }, data: { role } });
+    await recordAudit(tx, {
+      userId: current.id,
+      entity: "User",
+      entityId: userId,
+      action: "UPDATE",
+      summary: `Perfil de ${target.email}: ${target.role} → ${role}`,
+    });
+  });
+
+  revalidatePath("/ajustes");
+  return { message: `${target.email} pasa a ${USER_ROLE_LABELS[role]}.` };
+}
+
+/**
+ * Pone una contraseña nueva a otra cuenta.
+ *
+ * Alguien olvida la suya un lunes por la mañana y no hay correo de recuperación
+ * montado: esto es lo que evita que se quede fuera hasta que alguien toque la
+ * base de datos a mano. La contraseña se teclea aquí y se le dice de viva voz;
+ * no se guarda ni se devuelve en claro.
+ */
+export async function resetUserPasswordAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const current = await requireRole("OWNER", "ADMIN");
+
+  const userId = text(formData, "userId");
+  const password = text(formData, "password");
+
+  const target = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, role: true, email: true },
+  });
+  if (!target) return { error: "Esa cuenta ya no existe." };
+
+  const veto = puedeGestionar(current, target);
+  if (veto) return { error: veto };
+
+  if (password.length < 10) {
+    return {
+      error: "Revisa la contraseña.",
+      errors: { password: "Debe tener al menos 10 caracteres" },
+    };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id: userId },
+      data: { passwordHash: await hashPassword(password) },
+    });
+    await recordAudit(tx, {
+      userId: current.id,
+      entity: "User",
+      entityId: userId,
+      action: "UPDATE",
+      summary: `Contraseña restablecida a ${target.email}`,
+    });
+  });
+
+  revalidatePath("/ajustes");
+  return { message: `Contraseña nueva para ${target.email}. Díselo en persona.` };
 }
 
 /** Cambia la contraseña de la propia cuenta. */

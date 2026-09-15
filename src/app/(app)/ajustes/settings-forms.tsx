@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { ErrorBanner, Field, SubmitButton } from "@/components/ui";
 import { VAT_RATES, VAT_RATE_LABELS } from "@/lib/money";
 import { USER_ROLE_LABELS, USER_ROLES } from "@/lib/validation";
@@ -372,5 +372,116 @@ export function PasswordForm({
 
       <SubmitButton className="btn-secondary">Cambiar contraseña</SubmitButton>
     </form>
+  );
+}
+
+/**
+ * Administración de una cuenta ya existente: perfil y contraseña.
+ *
+ * Va en su propio componente por fila porque cada una tiene su propio estado de
+ * formulario: si un error de una fila se pintara en todas, nadie sabría a qué
+ * cuenta se refiere.
+ */
+export function UserAdminControls({
+  userId,
+  email,
+  role,
+  active,
+  isSelf,
+  manageable,
+  roleAction,
+  passwordAction,
+  toggleAction,
+}: {
+  userId: string;
+  email: string;
+  role: string;
+  active: boolean;
+  isSelf: boolean;
+  /** False cuando quien mira no manda sobre esa cuenta (un admin sobre el jefe). */
+  manageable: boolean;
+  roleAction: (state: FormState, formData: FormData) => Promise<FormState>;
+  passwordAction: (state: FormState, formData: FormData) => Promise<FormState>;
+  toggleAction: (formData: FormData) => Promise<void>;
+}) {
+  const [roleState, roleFormAction] = useActionState<FormState, FormData>(roleAction, {});
+  const [passState, passFormAction] = useActionState<FormState, FormData>(passwordAction, {});
+  const [abierta, setAbierta] = useState(false);
+
+  if (isSelf) {
+    return <span className="text-xs text-slate-400">Tu cuenta</span>;
+  }
+  if (!manageable) {
+    return <span className="text-xs text-slate-400">Cuenta de propietario</span>;
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <form action={roleFormAction} className="flex items-center gap-1">
+          <input type="hidden" name="userId" value={userId} />
+          <label htmlFor={`role-${userId}`} className="sr-only">
+            Perfil de {email}
+          </label>
+          <select id={`role-${userId}`} name="role" defaultValue={role} className="input input-sm">
+            {USER_ROLES.map((r) => (
+              <option key={r} value={r}>
+                {USER_ROLE_LABELS[r]}
+              </option>
+            ))}
+          </select>
+          <SubmitButton className="btn-secondary btn-sm" pendingLabel="…">
+            Cambiar
+          </SubmitButton>
+        </form>
+
+        <button
+          type="button"
+          onClick={() => setAbierta((v) => !v)}
+          aria-expanded={abierta}
+          className="btn-ghost btn-sm"
+        >
+          Contraseña
+        </button>
+
+        <form action={toggleAction}>
+          <input type="hidden" name="userId" value={userId} />
+          <button type="submit" className="btn-ghost btn-sm">
+            {active ? "Desactivar" : "Activar"}
+          </button>
+        </form>
+      </div>
+
+      {abierta && (
+        <form action={passFormAction} className="flex flex-wrap items-center justify-end gap-2">
+          <input type="hidden" name="userId" value={userId} />
+          <label htmlFor={`pass-${userId}`} className="sr-only">
+            Contraseña nueva para {email}
+          </label>
+          <input
+            id={`pass-${userId}`}
+            name="password"
+            type="text"
+            autoComplete="off"
+            placeholder="Contraseña nueva, mínimo 10"
+            className={`input input-sm w-56 ${passState.errors?.password ? "input-error" : ""}`}
+          />
+          <SubmitButton className="btn-secondary btn-sm" pendingLabel="…">
+            Restablecer
+          </SubmitButton>
+        </form>
+      )}
+
+      {(roleState.error || passState.error) && (
+        <p role="alert" className="text-right text-xs text-red-700">
+          {roleState.error ?? passState.error}
+        </p>
+      )}
+      {(roleState.message || passState.message) && (
+        <p role="status" className="text-right text-xs text-emerald-700">
+          {roleState.message ?? passState.message}
+        </p>
+      )}
+    </div>
   );
 }

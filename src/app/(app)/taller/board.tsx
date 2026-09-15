@@ -11,6 +11,7 @@ import {
   type OrderStatus,
 } from "@/lib/validation";
 import { moveCardAction, type CardActionResult } from "./actions";
+import { NewCardPanel, type CardCustomer } from "./new-card";
 
 export interface BoardCard {
   id: string;
@@ -152,7 +153,14 @@ function Card({
   );
 }
 
-export function Board({ cards: initialCards }: { cards: BoardCard[] }) {
+export function Board({
+  cards: initialCards,
+  customers,
+}: {
+  cards: BoardCard[];
+  /** Para el alta rápida; solo clientes activos. */
+  customers: CardCustomer[];
+}) {
   const [cards, setCards] = useState(initialCards);
   const [arrastrada, setArrastrada] = useState<string | null>(null);
   const [columnaActiva, setColumnaActiva] = useState<OrderStatus | null>(null);
@@ -236,6 +244,16 @@ export function Board({ cards: initialCards }: { cards: BoardCard[] }) {
                   {importe > 0 && ` · ${formatCents(importe)}`}
                 </span>
               </header>
+
+              {columna === "DRAFT" && (
+                <div className="px-2 pb-2">
+                  <NewCardPanel
+                    customers={customers}
+                    label="+ Nueva tarjeta"
+                    className="btn-secondary btn-sm w-full"
+                  />
+                </div>
+              )}
 
               <ul className="flex min-h-24 flex-1 flex-col gap-2 px-2 pb-3">
                 {deLaColumna.length === 0 && (

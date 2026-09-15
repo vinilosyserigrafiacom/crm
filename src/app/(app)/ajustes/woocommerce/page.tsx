@@ -2,10 +2,17 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
-import { readWooConfig } from "@/lib/woocommerce";
+import { getWooConfig, storedState } from "@/lib/integration-config";
+import { CredentialsForm } from "@/components/credentials-form";
+import { maskSecret } from "@/lib/secrets";
 import { formatDateTime } from "@/lib/format";
 import { SyncPanel } from "./sync-panel";
-import { syncNowAction, testConnectionAction } from "./actions";
+import {
+  clearWooCredentialsAction,
+  saveWooCredentialsAction,
+  syncNowAction,
+  testConnectionAction,
+} from "./actions";
 
 export const metadata: Metadata = { title: "WooCommerce" };
 
@@ -28,7 +35,7 @@ export default async function WooCommercePage() {
   const user = await requireUser();
   const puedeGestionar = user.role === "OWNER" || user.role === "ADMIN";
 
-  const config = readWooConfig();
+  const [config, guardadas] = await Promise.all([getWooConfig(), storedState("woocommerce")]);
   const configurada = config.ok;
 
   const [ejecuciones, importados, clientesImportados] = await Promise.all([
@@ -68,7 +75,7 @@ export default async function WooCommercePage() {
           </span>
         </div>
         <div className="card-body space-y-4">
-          {configurada ? (
+          {configurada && (
             <dl className="grid gap-3 text-sm sm:grid-cols-3">
               <div>
                 <dt className="text-xs text-slate-500">Tienda</dt>
@@ -83,28 +90,61 @@ export default async function WooCommercePage() {
                 <dd className="tabular-nums">{importados}</dd>
               </div>
             </dl>
-          ) : (
-            <div className="space-y-3 text-sm text-slate-700">
-              <p>
-                Para conectar la tienda, añade estas tres líneas al fichero{" "}
-                <code className="rounded bg-slate-100 px-1 font-mono text-xs">.env</code> del
-                servidor y reinicia la aplicación:
-              </p>
-              <pre className="table-wrap rounded-lg bg-slate-900 p-3 text-xs text-slate-100">
-                <code>{`WOO_URL="https://vinilosyserigrafia.com"
-WOO_CONSUMER_KEY="ck_..."
-WOO_CONSUMER_SECRET="cs_..."`}</code>
-              </pre>
-              <p className="text-xs text-slate-500">
+          )}
+
+          {puedeGestionar ? (
+            <>
+              <p className="text-sm text-slate-700">
                 Las claves se generan en WooCommerce → Ajustes → Avanzado → API REST, con permiso
                 de <strong>solo lectura</strong>: el CRM no necesita más.
               </p>
-              <p className="text-xs text-slate-500">
-                Van en el fichero de entorno y no en esta pantalla a propósito: una clave de la
-                tienda deja leer todo el fichero de clientes, y guardarla en la base de datos la
-                metería en cualquier copia de seguridad.
-              </p>
-            </div>
+              <CredentialsForm
+                action={saveWooCredentialsAction}
+                clearAction={guardadas.saved ? clearWooCredentialsAction : undefined}
+                saved={guardadas.saved}
+                savedLabel={
+                  guardadas.savedAt
+                    ? `Guardadas el ${formatDateTime(guardadas.savedAt)}${
+                        guardadas.savedBy ? ` por ${guardadas.savedBy}` : ""
+                      }.`
+                    : undefined
+                }
+                fields={[
+                  {
+                    name: "baseUrl",
+                    label: "Dirección de la tienda",
+                    wide: true,
+                    placeholder: "https://vinilosyserigrafia.com",
+                    hint: "Sin /wp-json ni barra final.",
+                    value: configurada ? config.config.baseUrl : "",
+                  },
+                  {
+                    name: "consumerKey",
+                    label: "Consumer key",
+                    placeholder: "ck_…",
+                    value: configurada ? config.config.consumerKey : "",
+                  },
+                  {
+                    name: "consumerSecret",
+                    label: "Consumer secret",
+                    placeholder: "cs_…",
+                    secret: true,
+                    masked: configurada ? maskSecret(config.config.consumerSecret) : undefined,
+                  },
+                ]}
+              />
+              {configurada && config.source === "ENV" && !guardadas.saved && (
+                <p className="text-xs text-slate-500">
+                  Ahora mismo la conexión sale del fichero{" "}
+                  <code className="rounded bg-slate-100 px-1 font-mono">.env</code> del servidor. Si
+                  guardas aquí unas credenciales, mandan las de esta pantalla.
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-slate-600">
+              Solo las cuentas de propietario y administración pueden cambiar las credenciales.
+            </p>
           )}
 
           {puedeGestionar ? (

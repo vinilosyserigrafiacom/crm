@@ -133,3 +133,79 @@ export async function setDueDateAction(input: unknown): Promise<CardActionResult
   revalidatePath(`/pedidos/${orderId}`);
   return { ok: true };
 }
+
+const newCardSchema = z.object({
+  customerId: z.string().min(1, "Elige un cliente"),
+  title: z.string().trim().max(200).optional().default(""),
+  /** Entrega comprometida en yyyy-mm-dd; null si se crea sin fecha. */
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha no válida")
+    .nullable()
+    .default(null),
+});
+
+/**
+ * Da de alta una tarjeta desde el tablero o el calendario.
+ *
+ * Nace en borrador y sin líneas: aquí solo se apunta el trabajo que entra por
+ * teléfono o por el mostrador para que no se pierda, y los importes se ponen
+ * después en el editor. Empieza en borrador a propósito, porque numerar es lo
+ * que hace el paso a confirmado y un trabajo recién apuntado todavía puede
+ * quedarse en nada.
+ */
+export async function createCardAction(
+  input: unknown,
+): Promise<CardActionResult & { orderId?: string }> {
+  const user = await requireUser();
+
+  const parsed = newCardSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos no válidos." };
+  }
+  const { customerId, title, date } = parsed.data;
+
+  const customer = await prisma.customer.findUnique({
+    where: { id: customerId },
+    select: { id: true, legalName: true, active: true },
+  });
+  if (!customer) return { ok: false, error: "Ese cliente ya no existe." };
+  if (!customer.active) return { ok: false, error: "Ese cliente está archivado." };
+
+  const dueDate = date === null ? null : fromDateInput(date);
+  if (date !== null && dueDate === null) return { ok: false, error: "Fecha no válida." };
+
+  const orderId = await prisma.$transaction(async (tx) => {
+    const order = await tx.order.create({
+      data: {
+        series: "A",
+        year: new Date().getFullYear(),
+        customerId: customer.id,
+        createdById: user.id,
+        status: "DRAFT",
+        title: title || null,
+        dueDate,
+      },
+      select: { id: true },
+    });
+
+    // Al final de la columna de borradores, que es donde la va a buscar quien
+    // acaba de apuntarla.
+    await repositionCard(tx, { orderId: order.id, status: "DRAFT", beforeId: null });
+
+    await recordAudit(tx, {
+      userId: user.id,
+      entity: "Order",
+      entityId: order.id,
+      action: "CREATE",
+      summary: `Tarjeta creada para ${customer.legalName}${title ? `: ${title}` : ""}`,
+      data: { dueDate },
+    });
+
+    return order.id;
+  });
+
+  revalidatePath("/taller");
+  revalidatePath("/pedidos");
+  return { ok: true, orderId };
+}

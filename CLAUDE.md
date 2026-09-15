@@ -49,6 +49,13 @@ ajuste del grupo. La baja del cliente arrastra también a sus contactos. Y las
 listas de destinatarios no se guardan nunca: se resuelven al mirarlas, para que
 una baja no dependa de refrescar nada.
 
+**Las credenciales de integraciones se cifran.** Se escriben desde Ajustes y se
+guardan en `IntegrationSecret` cifradas con AES-256-GCM y una clave derivada de
+`SESSION_SECRET` (`src/lib/secrets.ts`). Nunca en claro en la base, nunca de
+vuelta al navegador: el formulario solo enseña los últimos caracteres. De dónde
+salen —pantalla o `.env`— lo decide `src/lib/integration-config.ts`, y es el
+único sitio que lo decide: manda la pantalla y el `.env` queda de respaldo.
+
 **La tienda no pisa el taller.** Un pedido importado de WooCommerce conserva el
 número de la tienda y no gasta numeración de la serie. La sincronización
 refresca siempre las líneas y los importes —eso solo lo sabe la tienda— pero el
@@ -91,6 +98,11 @@ en `src/lib/woo-sync.ts`. Y nunca toca `internalNotes`, `dueDate`,
   que se pueda hacer arrastrando tiene que poder hacerse también sin arrastrar**:
   el menú «Mover a…» de las tarjetas no es un extra, es la vía principal en el
   móvil del taller.
+- El alta rápida de tarjetas (`taller/new-card.tsx`) crea el pedido **en
+  borrador y sin líneas**, y nunca en otra columna. Numerar es lo que hace el
+  paso a confirmado: una tarjeta creada directamente «en producción» se saltaría
+  la numeración o gastaría un número por un trabajo que todavía puede quedarse
+  en nada.
 - Las acciones de `taller/actions.ts` reciben un objeto y no un `FormData`,
   porque las llama el código de arrastre. Siguen siendo endpoints públicos: se
   validan con Zod igual que un formulario.
@@ -124,10 +136,10 @@ que hay que probar cuando cambie algo— y `woo-sync.ts` pone las transacciones
 alrededor, una por registro para que un pedido raro no tire abajo los cien
 anteriores.
 
-Las credenciales viven **solo en variables de entorno**, nunca en la base de
-datos: una clave de la tienda lee el fichero entero de clientes, y guardada en
-la base viajaría en cada copia de seguridad. `readWooConfig()` es el único sitio
-que las lee.
+Las credenciales se ponen desde la pantalla y se guardan cifradas; el `.env`
+sigue valiendo como respaldo. `getWooConfig()` es el único sitio que decide
+entre las dos, y ni el cliente de la API ni las acciones leen `process.env` por
+su cuenta.
 
 Un pedido importado **no se puede editar** en el CRM: sus líneas las reescribe
 la siguiente sincronización, así que ofrecer el editor sería prometer un cambio
@@ -140,6 +152,26 @@ simulada y ejecuta el importador de verdad contra una base de datos temporal
 que crea y borra sola. Es la prueba que cubre la reconciliación: reimportar sin
 duplicar, no gastar numeración, respetar el estado del taller y enlazar por
 correo con un cliente que ya existía. Si tocas `woo-sync.ts`, pásala.
+
+## Mailrelay
+
+`mailrelay.ts` habla con la API y `mailrelay-push.ts` hace la reconciliación.
+De la API se usan tres cosas y solo tres a propósito: `GET /groups`,
+`GET /subscribers` paginado y `POST /subscribers/sync`. Los filtros por grupo se
+resuelven aquí con los datos ya traídos, y no pidiéndoselos a la API: un
+parámetro de filtro que la API ignorase devolvería la lista entera sin avisar, y
+el que sobra acabaría fuera del grupo por error.
+
+**Subir es reconciliar, no exportar.** Da de alta a quien falte y saca del grupo
+a quien ya no esté en la audiencia. Sacar a alguien de un grupo nunca es
+borrarlo: se le manda su lista de grupos sin este. Por eso, si la API deja de
+devolver `group_ids`, `pushSegmentToMailrelay()` se para **antes de escribir
+nada**: sin ese dato, meter a alguien en un grupo lo sacaría de los demás. Si
+tocas esa parte, esa salvaguarda tiene que seguir.
+
+`npm run test:mailrelay` (en `scripts/prueba-mailrelay.ts`) levanta una cuenta
+simulada y comprueba lo de arriba de extremo a extremo contra una base de datos
+temporal. Si tocas `mailrelay-push.ts`, pásala.
 
 ## Lo que viene después
 

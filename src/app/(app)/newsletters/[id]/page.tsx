@@ -11,7 +11,9 @@ import {
 } from "@/lib/segments";
 import { SEGMENT_KIND_LABELS, type SegmentKind } from "@/lib/validation";
 import { formatDate, truncate } from "@/lib/format";
+import { getMailrelayConfig } from "@/lib/integration-config";
 import { MembersCard } from "./members-card";
+import { MailrelayCard } from "./mailrelay-card";
 import {
   addMembersAction,
   deleteSegmentAction,
@@ -57,7 +59,7 @@ export default async function SegmentPage({ params }: { params: Promise<{ id: st
 
   const esEstatico = segment.kind === "STATIC";
 
-  const [audiencia, candidatos] = await Promise.all([
+  const [audiencia, candidatos, mailrelayConfig] = await Promise.all([
     resolveAudience(segment),
     esEstatico
       ? prisma.customer.findMany({
@@ -66,6 +68,7 @@ export default async function SegmentPage({ params }: { params: Promise<{ id: st
           select: { id: true, code: true, legalName: true },
         })
       : Promise.resolve([]),
+    getMailrelayConfig(),
   ]);
 
   const borrar = deleteSegmentAction.bind(null, segment.id);
@@ -223,7 +226,17 @@ export default async function SegmentPage({ params }: { params: Promise<{ id: st
           </section>
         </div>
 
-        <div className="min-w-0">
+        <div className="min-w-0 space-y-5">
+          <MailrelayCard
+            segmentId={segment.id}
+            configured={mailrelayConfig.ok}
+            recipientCount={audiencia.recipients.length}
+            linkedGroupId={segment.mailrelayGroupId}
+            linkedGroupName={segment.mailrelayGroupName}
+            syncedAt={segment.mailrelaySyncedAt}
+            syncedCount={segment.mailrelaySyncedCount}
+          />
+
           <section className="card">
             <div className="card-header">
               <h2 className="card-title">Destinatarios ({audiencia.recipients.length})</h2>

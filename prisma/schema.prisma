@@ -41,6 +41,7 @@ model User {
   auditLogs AuditLog[]
   segments  Segment[]
   syncRuns  WooSyncRun[]
+  secrets   IntegrationSecret[]
 }
 
 /// Datos del emisor. Tabla de una sola fila (id = "default"): hace falta para
@@ -537,6 +538,17 @@ model Segment {
 
   active Boolean @default(true)
 
+  // --- Mailrelay ---
+  //
+  // Solo se guarda a qué grupo de Mailrelay se sube esta audiencia y cómo fue
+  // la última subida. La lista de destinatarios sigue sin guardarse en ningún
+  // sitio: se resuelve al mirarla y al subirla, para que una baja no dependa de
+  // que alguien refresque nada.
+  mailrelayGroupId     Int?
+  mailrelayGroupName   String?
+  mailrelaySyncedAt    DateTime?
+  mailrelaySyncedCount Int?
+
   createdById String?
   createdBy   User?   @relation(fields: [createdById], references: [id])
 
@@ -570,6 +582,23 @@ model SegmentMember {
 /// Guarda desde cuándo se pidieron los cambios para que la siguiente pasada
 /// solo traiga lo nuevo, y deja constancia de lo que hizo cada una. Cuando algo
 /// no cuadre con la tienda, esto es lo primero que hay que mirar.
+/// Credenciales de una integración, guardadas desde la pantalla de Ajustes.
+///
+/// El contenido va cifrado con AES-256-GCM y una clave derivada de
+/// SESSION_SECRET, que vive en el .env y no en la base de datos. Así una copia
+/// de seguridad de la base, que es lo que se manda por correo o se sube a un
+/// disco de red, no lleva dentro la llave de la tienda ni la de Mailrelay.
+model IntegrationSecret {
+  /// Identificador de la integración: woocommerce | mailrelay.
+  id      String @id
+  /// JSON cifrado. Ver src/lib/secrets.ts.
+  payload String
+
+  updatedAt   DateTime @updatedAt
+  updatedById String?
+  updatedBy   User?    @relation(fields: [updatedById], references: [id])
+}
+
 model WooSyncRun {
   id         String    @id @default(cuid())
   startedAt  DateTime  @default(now())

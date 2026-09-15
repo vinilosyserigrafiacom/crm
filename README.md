@@ -24,11 +24,18 @@ todos los datos se quedan en un fichero o en una base de datos que controlas tú
   estado del pedido: se arrastra la tarjeta de «En producción» a «Listo» y el
   pedido cambia de estado. Y un calendario mensual de entregas donde arrastrar
   un trabajo a otro día cambia su fecha comprometida. Desde el móvil, donde no
-  hay arrastre, cada tarjeta lleva un menú «Mover a…».
+  hay arrastre, cada tarjeta lleva un menú «Mover a…». El trabajo que entra por
+  teléfono se apunta en el sitio: «Nueva tarjeta» en el tablero, o el «+» de un
+  día del calendario, crean el pedido en borrador con el cliente y el trabajo,
+  y los importes se ponen después.
 - **Newsletters.** Grupos de destinatarios para las campañas. Pueden ser listas
   fijas elegidas a mano o grupos por reglas (etiqueta, tipo de cliente,
   provincia, actividad reciente, gasto acumulado) que se recalculan solos. La
-  lista se exporta en CSV para Mailchimp, Brevo o el gestor que uses.
+  lista se exporta en CSV, o se sube directamente a un grupo de **Mailrelay**
+  para mandar la campaña desde allí.
+- **Cuentas.** Altas de usuario con tres perfiles (propietario, administración,
+  taller), cambio de perfil, restablecimiento de contraseña y baja de cuentas.
+  Nunca se puede quedar el taller sin ninguna cuenta de propietario.
 - **WooCommerce.** Trae los clientes y los pedidos de la tienda, en un solo
   sentido: el CRM nunca escribe nada en WooCommerce. Los pedidos importados
   conservan el número de la tienda y no gastan numeración de la serie; el
@@ -83,6 +90,7 @@ hayas visto cómo funciona.
 | `npm run check` | Tipos, linter y pruebas de una tacada |
 | `npm test` | Pruebas de importes, NIF, segmentación y tablero |
 | `npm run test:woo` | Prueba el importador de WooCommerce contra una tienda simulada |
+| `npm run test:mailrelay` | Prueba la subida a Mailrelay contra una cuenta simulada |
 | `npm run db:migrate` | Crear una migración nueva tras tocar el esquema |
 | `npm run db:deploy` | Aplicar migraciones en producción |
 | `npm run db:seed` | Datos iniciales (no hace nada si ya hay usuarios) |
@@ -179,21 +187,25 @@ del cliente.
 Avanzado → API REST → Añadir clave*. Permisos **solo lectura**. Apunta la
 *consumer key* y el *consumer secret*: el secreto solo se enseña una vez.
 
-**2. Ponerlas en el `.env` del CRM** (nunca en la base de datos: un volcado o una
-copia de seguridad se llevaría la llave de la tienda):
-
-```env
-WOO_URL="https://vinilosyserigrafia.com"
-WOO_CONSUMER_KEY="ck_..."
-WOO_CONSUMER_SECRET="cs_..."
-```
+**2. Pegarlas en *Ajustes → WooCommerce*.** Hay un formulario con la dirección de
+la tienda, la consumer key y el consumer secret. Se guardan cifradas con
+AES-256-GCM y una clave derivada de `SESSION_SECRET`, que vive en el `.env`: una
+copia de seguridad de la base de datos, que es lo que acaba en un correo o en un
+disco de red, no lleva dentro nada aprovechable sin ese fichero. El secreto no
+vuelve nunca al navegador —solo se enseñan sus últimos caracteres— y dejarlo en
+blanco al guardar significa «no lo cambies», por si solo hay que corregir la
+dirección.
 
 Las claves viajan por cabecera `Authorization`, así que la tienda tiene que
-estar en HTTPS. Reinicia el CRM después de tocar el `.env`.
+estar en HTTPS.
 
-**3. Importar.** En *Ajustes → WooCommerce* hay un botón para probar la conexión
-y dos para importar: la incremental trae solo lo modificado desde la última vez
-y la completa lo revisa todo. La pantalla guarda el historial de las últimas
+También se pueden dejar en el `.env` (`WOO_URL`, `WOO_CONSUMER_KEY`,
+`WOO_CONSUMER_SECRET`), que es cómodo para montar un servidor nuevo ya
+conectado; si hay credenciales guardadas desde la pantalla, mandan aquellas.
+
+**3. Importar.** En la misma pantalla hay un botón para probar la conexión y dos
+para importar: la incremental trae solo lo modificado desde la última vez y la
+completa lo revisa todo. La pantalla guarda el historial de las últimas
 sincronizaciones con lo que se creó, lo que se actualizó y los avisos.
 
 Para importar de forma automática, un `cron` que llame a la importación
@@ -227,6 +239,42 @@ pantalla.
 `npm run test:woo` levanta una tienda simulada y comprueba todo lo anterior de
 extremo a extremo contra una base de datos temporal.
 
+## Conectar Mailrelay
+
+Las campañas se mandan desde Mailrelay; lo que hace el CRM es mantener al día la
+lista de a quién se le manda.
+
+**1. Crear la clave.** En Mailrelay: *Ajustes → Claves API*.
+
+**2. Pegarla en *Ajustes → Mailrelay***, junto con la dirección de tu cuenta (la
+que termina en `.ipzmarketing.com`). Se guarda cifrada igual que la de la
+tienda. El botón «Probar conexión» enseña los grupos de tu cuenta: si salen, la
+conexión está bien.
+
+**3. Subir un grupo.** En la ficha de cada grupo de *Newsletters* hay una tarjeta
+de Mailrelay: se elige el grupo de destino y se pulsa «Subir destinatarios». El
+grupo elegido se recuerda, así que las siguientes veces es un clic.
+
+### Qué hace al subir
+
+Subir no es exportar: deja el grupo de Mailrelay **igual que la lista del CRM en
+ese momento**.
+
+- **Da de alta a quien falte** y deja como está a quien ya estuviera.
+- **Saca del grupo a quien ya no esté**: se dio de baja, se archivó el cliente o
+  dejó de cumplir la regla. Es lo que hace que una baja apuntada aquí sirva de
+  algo cuando el correo lo manda otro.
+- **Nunca borra a nadie de Mailrelay.** A quien sale de un grupo se le deja en
+  los demás a los que pertenezca, que pueden ser listas que desde aquí no se ven.
+- **Si Mailrelay deja de decir a qué grupos pertenece cada suscriptor**, la
+  subida se para antes de escribir nada y lo dice: sin ese dato, meter a alguien
+  en un grupo lo sacaría de todos los demás.
+- **La lista sigue sin guardarse en el CRM.** Se resuelve en el momento de
+  subirla, igual que al mirarla o al exportarla a CSV.
+
+`npm run test:mailrelay` levanta una cuenta de Mailrelay simulada y comprueba
+todo lo anterior de extremo a extremo.
+
 ## Qué falta para facturar
 
 El modelo de datos ya contempla las facturas (`NumberSequence` tiene el tipo
@@ -252,6 +300,7 @@ prisma/
 scripts/
   setup.mjs            Instalación en un solo comando
   prueba-woocommerce.ts  Importador contra una tienda simulada, de punta a punta
+  prueba-mailrelay.ts    Subida a una cuenta de Mailrelay simulada
 src/
   app/
     (app)/             Páginas con sesión: resumen, clientes, presupuestos,
@@ -266,6 +315,10 @@ src/
     woocommerce.ts     Cliente de la API de la tienda
     woo-mapping.ts     Traducción de clientes y pedidos de Woo (con pruebas)
     woo-sync.ts        Importación y reconciliación
+    mailrelay.ts       Cliente de la API de Mailrelay
+    mailrelay-push.ts  Subida y reconciliación de un grupo
+    secrets.ts         Cifrado de las credenciales guardadas (con pruebas)
+    integration-config.ts  De dónde salen las credenciales: pantalla o .env
     orders-server.ts   Cambios de estado del pedido, compartidos
     documents.ts       Lógica común de presupuestos y pedidos
     numbering.ts       Series correlativas

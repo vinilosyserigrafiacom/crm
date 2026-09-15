@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import { formatCents } from "@/lib/money";
-import { documentNumber, toDateInput, truncate } from "@/lib/format";
+import { documentNumber, formatDate, toDateInput, truncate } from "@/lib/format";
 import { ORDER_STATUS_LABELS, type OrderStatus } from "@/lib/validation";
 import { setDueDateAction, type CardActionResult } from "./actions";
+import { NewCardForm, type CardCustomer } from "./new-card";
 import type { BoardCard } from "./board";
 
 /**
@@ -82,6 +83,7 @@ function Chip({
 export function Calendar({
   cards,
   unscheduled,
+  customers,
   month,
   prevHref,
   nextHref,
@@ -92,6 +94,8 @@ export function Calendar({
   cards: BoardCard[];
   /** Pedidos abiertos sin fecha de entrega. */
   unscheduled: BoardCard[];
+  /** Para el alta rápida; solo clientes activos. */
+  customers: CardCustomer[];
   month: Date;
   prevHref: string;
   nextHref: string;
@@ -105,6 +109,8 @@ export function Calendar({
   const [bandejaActiva, setBandejaActiva] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendiente, setPendiente] = useState<string | null>(null);
+  /** Día para el que se está dando de alta una tarjeta, en yyyy-mm-dd. */
+  const [altaEn, setAltaEn] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
   useEffect(() => setLocales(cards), [cards]);
@@ -180,6 +186,21 @@ export function Calendar({
         </div>
       </div>
 
+      {altaEn && (
+        <div className="card card-body">
+          <p className="mb-2 text-sm font-medium text-slate-900">
+            Nueva tarjeta con entrega el {formatDate(new Date(`${altaEn}T12:00:00`))}
+          </p>
+          <div className="max-w-sm">
+            <NewCardForm
+              customers={customers}
+              defaultDate={altaEn}
+              onClose={() => setAltaEn(null)}
+            />
+          </div>
+        </div>
+      )}
+
       <div className="card overflow-hidden">
         <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
           {DIAS.map((dia) => (
@@ -230,9 +251,22 @@ export function Calendar({
                   >
                     {dia.getDate()}
                   </span>
-                  {delDia.length > 2 && (
-                    <span className="text-[10px] text-slate-400">{delDia.length}</span>
-                  )}
+                  <span className="flex items-center gap-1">
+                    {delDia.length > 2 && (
+                      <span className="text-[10px] text-slate-400">{delDia.length}</span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setAltaEn(clave)}
+                      aria-label={`Nueva tarjeta para el ${clave}`}
+                      title="Nueva tarjeta para este día"
+                      className={`grid h-5 w-5 place-items-center rounded text-sm leading-none text-slate-400 hover:bg-white hover:text-ink-700 ${
+                        altaEn === clave ? "bg-white text-ink-700 ring-1 ring-ink-300" : ""
+                      }`}
+                    >
+                      +
+                    </button>
+                  </span>
                 </div>
 
                 <div className="flex flex-col gap-1">

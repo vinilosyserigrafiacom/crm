@@ -117,6 +117,11 @@ body {
   .input-error {
     @apply border-red-400 focus:border-red-500 focus:ring-red-100;
   }
+  /* Campos que van en línea dentro de una tabla o una tarjeta, donde el alto
+     normal rompería la fila. */
+  .input-sm {
+    @apply w-auto px-2 py-1 text-xs;
+  }
   /* Los importes y cantidades se alinean a la derecha y en tabular para que
      las columnas de cifras se puedan comparar en vertical. */
   .input-number {

@@ -13,7 +13,12 @@ export const metadata: Metadata = { title: "Taller" };
 type Vista = "tablero" | "calendario";
 
 /** Estados cuyo trabajo sigue vivo; son los que se planifican. */
-const ABIERTOS: OrderStatus[] = ["DRAFT", "CONFIRMED", "IN_PRODUCTION", "READY"];
+const ABIERTOS: OrderStatus[] = [
+  "DRAFT",
+  "CONFIRMED",
+  "IN_PRODUCTION",
+  "READY",
+];
 
 const cardSelect = {
   id: true,
@@ -75,7 +80,14 @@ export default async function WorkshopPage({
 
   const finDeMes = new Date(month.getFullYear(), month.getMonth() + 1, 1);
 
-  const [enColumnas, entregadosRecientes, delMes, sinFecha, pendientes] = await Promise.all([
+  const [
+    enColumnas,
+    entregadosRecientes,
+    delMes,
+    sinFecha,
+    pendientes,
+    clientes,
+  ] = await Promise.all([
     prisma.order.findMany({
       where: { status: { in: ABIERTOS } },
       orderBy: [{ boardPosition: "asc" }, { createdAt: "asc" }],
@@ -105,6 +117,13 @@ export default async function WorkshopPage({
       _sum: { total: true },
       _count: true,
     }),
+    // Para el alta rápida de tarjetas: solo clientes activos, que a uno
+    // archivado no se le apunta trabajo nuevo.
+    prisma.customer.findMany({
+      where: { active: true },
+      orderBy: { legalName: "asc" },
+      select: { id: true, code: true, legalName: true, tradeName: true },
+    }),
   ]);
 
   const boardCards = [...enColumnas, ...entregadosRecientes].map(toCard);
@@ -127,7 +146,8 @@ export default async function WorkshopPage({
         <div>
           <h1 className="page-title">Taller</h1>
           <p className="page-subtitle">
-            {pendientes._count} trabajos en curso por {formatCents(pendientes._sum.total ?? 0)}.
+            {pendientes._count} trabajos en curso por{" "}
+            {formatCents(pendientes._sum.total ?? 0)}.
           </p>
         </div>
 
@@ -158,10 +178,11 @@ export default async function WorkshopPage({
 
       {vista === "tablero" ? (
         <>
-          <Board cards={boardCards} />
+          <Board cards={boardCards} customers={clientes} />
           <p className="text-xs text-slate-500">
-            Arrastra las tarjetas entre columnas, o usa «Mover a…» desde el móvil. La columna de
-            entregados muestra solo el último mes; el resto está en{" "}
+            Arrastra las tarjetas entre columnas, o usa «Mover a…» desde el
+            móvil. La columna de entregados muestra solo el último mes; el resto
+            está en{" "}
             <Link href="/pedidos" className="text-ink-700 hover:underline">
               Pedidos
             </Link>
@@ -172,6 +193,7 @@ export default async function WorkshopPage({
         <Calendar
           cards={delMes.map(toCard)}
           unscheduled={sinFecha.map(toCard)}
+          customers={clientes}
           month={month}
           monthLabel={monthLabel}
           prevHref={`/taller?vista=calendario&mes=${monthParam(mesAnterior)}`}

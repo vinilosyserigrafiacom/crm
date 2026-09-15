@@ -4,9 +4,11 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { recordAudit } from "@/lib/audit";
-import { readWooConfig, testWooConnection } from "@/lib/woocommerce";
+import { testWooConnection } from "@/lib/woocommerce";
+import { clearSecret, getWooConfig, saveSecret } from "@/lib/integration-config";
 import { runWooSync } from "@/lib/woo-sync";
-import type { FormState } from "@/lib/form";
+import { parseForm, snapshotValues, text, type FormState } from "@/lib/form";
+import { z } from "zod";
 
 /**
  * Acciones de la integración con la tienda.
@@ -20,10 +22,10 @@ import type { FormState } from "@/lib/form";
 export async function testConnectionAction(): Promise<FormState> {
   await requireRole("OWNER", "ADMIN");
 
-  const config = readWooConfig();
+  const config = await getWooConfig();
   if (!config.ok) {
     return {
-      error: `Falta configurar ${config.missing.join(", ")} en el fichero .env del servidor.`,
+      error: "Faltan la dirección de la tienda o las claves. Rellénalas aquí arriba y guarda.",
     };
   }
 
@@ -45,10 +47,10 @@ export async function testConnectionAction(): Promise<FormState> {
 export async function syncNowAction(completa: boolean): Promise<FormState> {
   const user = await requireRole("OWNER", "ADMIN");
 
-  const config = readWooConfig();
+  const config = await getWooConfig();
   if (!config.ok) {
     return {
-      error: `Falta configurar ${config.missing.join(", ")} en el fichero .env del servidor.`,
+      error: "Faltan la dirección de la tienda o las claves. Rellénalas aquí arriba y guarda.",
     };
   }
 
@@ -142,4 +144,66 @@ export async function syncNowAction(completa: boolean): Promise<FormState> {
     revalidatePath("/ajustes/woocommerce");
     return { error: mensaje };
   }
+}
+
+const wooCredentialsSchema = z.object({
+  baseUrl: z
+    .string()
+    .trim()
+    .min(1, "La dirección de la tienda es obligatoria")
+    .transform((v) => v.replace(/\/+$/, ""))
+    .refine((v) => /^https?:\/\//.test(v), "Tiene que empezar por https://"),
+  consumerKey: z.string().trim().min(1, "La consumer key es obligatoria"),
+  consumerSecret: z.string().trim().min(1, "El consumer secret es obligatorio"),
+});
+
+/**
+ * Guarda las credenciales de la tienda desde la pantalla.
+ *
+ * El secreto puede llegar vacío cuando ya había uno guardado: significa
+ * «déjalo como estaba». Así se puede corregir la dirección sin tener que volver
+ * a WooCommerce a generar una clave nueva, porque el secreto no se enseña.
+ */
+export async function saveWooCredentialsAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const user = await requireRole("OWNER", "ADMIN");
+
+  const anterior = await getWooConfig();
+  const secretoEscrito = text(formData, "consumerSecret").trim();
+  const consumerSecret =
+    secretoEscrito || (anterior.ok ? anterior.config.consumerSecret : "");
+
+  const parsed = parseForm(
+    wooCredentialsSchema,
+    {
+      baseUrl: text(formData, "baseUrl"),
+      consumerKey: text(formData, "consumerKey"),
+      consumerSecret,
+    },
+    formData,
+  );
+  if (!parsed.ok) return parsed.state;
+
+  try {
+    await saveSecret("woocommerce", { ...parsed.data }, user.id, "Credenciales de WooCommerce guardadas");
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "No se han podido guardar las credenciales.",
+      values: snapshotValues(formData),
+    };
+  }
+
+  revalidatePath("/ajustes");
+  revalidatePath("/ajustes/woocommerce");
+  return { message: "Credenciales guardadas. Prueba la conexión para comprobarlas." };
+}
+
+/** Borra las credenciales guardadas; vuelve a mandar lo que diga el .env. */
+export async function clearWooCredentialsAction(): Promise<void> {
+  const user = await requireRole("OWNER", "ADMIN");
+  await clearSecret("woocommerce", user.id, "Credenciales de WooCommerce borradas");
+  revalidatePath("/ajustes");
+  revalidatePath("/ajustes/woocommerce");
 }

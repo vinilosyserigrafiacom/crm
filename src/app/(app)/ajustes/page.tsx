@@ -4,13 +4,15 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { getCompanySettings } from "@/lib/company";
 import { verifyAuditChain } from "@/lib/audit";
-import { isWooConfigured } from "@/lib/woocommerce";
+import { getMailrelayConfig, getWooConfig } from "@/lib/integration-config";
 import { formatDateTime } from "@/lib/format";
 import { USER_ROLE_LABELS, type UserRole } from "@/lib/validation";
-import { CompanyForm, NewUserForm, PasswordForm } from "./settings-forms";
+import { CompanyForm, NewUserForm, PasswordForm, UserAdminControls } from "./settings-forms";
 import {
   changeOwnPasswordAction,
   createUserAction,
+  resetUserPasswordAction,
+  updateUserRoleAction,
   saveCompanySettingsAction,
   toggleUserActiveAction,
 } from "./actions";
@@ -21,7 +23,9 @@ export default async function SettingsPage() {
   const current = await requireUser();
   const canManage = current.role === "OWNER" || current.role === "ADMIN";
 
-  const wooConfigurada = isWooConfigured();
+  const [wooConfig, mailrelayConfig] = await Promise.all([getWooConfig(), getMailrelayConfig()]);
+  const wooConfigurada = wooConfig.ok;
+  const mailrelayConfigurada = mailrelayConfig.ok;
 
   const [company, users, sequences, chain] = await Promise.all([
     getCompanySettings(),
@@ -66,6 +70,21 @@ export default async function SettingsPage() {
               {wooConfigurada ? "Configurada" : "Sin configurar"}
             </span>
           </Link>
+
+          <Link
+            href="/ajustes/mailrelay"
+            className="mt-2 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2.5 transition-colors hover:border-ink-300"
+          >
+            <span>
+              <span className="block text-sm font-medium text-slate-900">Mailrelay</span>
+              <span className="block text-xs text-slate-500">
+                Subir los grupos de newsletter para las campañas
+              </span>
+            </span>
+            <span className={mailrelayConfigurada ? "pill-green" : "pill-slate"}>
+              {mailrelayConfigurada ? "Configurada" : "Sin configurar"}
+            </span>
+          </Link>
         </div>
       </section>
 
@@ -107,16 +126,17 @@ export default async function SettingsPage() {
                     </td>
                     {canManage && (
                       <td className="text-right">
-                        {user.id === current.id ? (
-                          <span className="text-xs text-slate-400">Tu cuenta</span>
-                        ) : (
-                          <form action={toggleUserActiveAction}>
-                            <input type="hidden" name="userId" value={user.id} />
-                            <button type="submit" className="btn-ghost btn-sm">
-                              {user.active ? "Desactivar" : "Activar"}
-                            </button>
-                          </form>
-                        )}
+                        <UserAdminControls
+                          userId={user.id}
+                          email={user.email}
+                          role={user.role}
+                          active={user.active}
+                          isSelf={user.id === current.id}
+                          manageable={user.role !== "OWNER" || current.role === "OWNER"}
+                          roleAction={updateUserRoleAction}
+                          passwordAction={resetUserPasswordAction}
+                          toggleAction={toggleUserActiveAction}
+                        />
                       </td>
                     )}
                   </tr>

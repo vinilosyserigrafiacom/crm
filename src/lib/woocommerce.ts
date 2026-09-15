@@ -3,11 +3,11 @@ import { z } from "zod";
 /**
  * Cliente de la API REST de WooCommerce.
  *
- * Las credenciales salen del entorno y no de la base de datos, igual que
- * SESSION_SECRET: una clave de la tienda permite leer todo el fichero de
- * clientes, y guardarla en la base de datos la metería en cualquier copia de
- * seguridad que se mande por correo. El precio es que configurar la conexión
- * pide editar el .env; a cambio, la pantalla de Ajustes no puede filtrarla.
+ * Este fichero solo sabe hablar con la tienda; de dónde salen las credenciales
+ * lo decide `src/lib/integration-config.ts`, que mira primero lo escrito en
+ * Ajustes (cifrado con la clave de sesión) y luego el .env. Aquí queda el
+ * lector del entorno, que es el respaldo para montar un servidor nuevo sin
+ * entrar a la aplicación.
  *
  * Todo lo que devuelve la tienda se valida con Zod. Es dato externo: aunque sea
  * tu propia tienda, un plugin puede cambiar un campo de sitio en cualquier
@@ -40,11 +40,6 @@ export function readWooConfig(env: NodeJS.ProcessEnv = process.env): WooConfigRe
   return { ok: true, config: { baseUrl, consumerKey, consumerSecret } };
 }
 
-/** ¿Está configurada la integración? */
-export function isWooConfigured(env: NodeJS.ProcessEnv = process.env): boolean {
-  return readWooConfig(env).ok;
-}
-
 export class WooError extends Error {
   constructor(
     message: string,
@@ -58,13 +53,13 @@ export class WooError extends Error {
 /** Traduce los fallos típicos a algo que se pueda leer sin saber de HTTP. */
 function describeStatus(status: number, body: string): string {
   if (status === 401) {
-    return "La tienda ha rechazado las credenciales (401). Revisa WOO_CONSUMER_KEY y WOO_CONSUMER_SECRET, y que la clave tenga permiso de lectura.";
+    return "La tienda ha rechazado las credenciales (401). Revísalas en Ajustes → WooCommerce y comprueba que la clave tiene permiso de lectura.";
   }
   if (status === 403) {
     return "La tienda ha denegado el acceso (403). Suele ser que la clave no tiene permisos, o que un cortafuegos o plugin de seguridad está bloqueando la API.";
   }
   if (status === 404) {
-    return "No se encuentra la API en esa dirección (404). Comprueba WOO_URL y que los enlaces permanentes de WordPress no estén en «Simple», porque entonces /wp-json no funciona.";
+    return "No se encuentra la API en esa dirección (404). Comprueba la dirección de la tienda y que los enlaces permanentes de WordPress no estén en «Simple», porque entonces /wp-json no funciona.";
   }
   if (status >= 500) {
     return `La tienda ha respondido con un error interno (${status}). Vuelve a intentarlo en un rato.`;
@@ -124,7 +119,7 @@ export async function fetchWooPage<T>(
     // El mensaje de red se recorta: puede traer la URL entera, y la URL no
     // lleva credenciales pero sí el dominio, que no aporta nada al usuario.
     throw new WooError(
-      `No se ha podido conectar con la tienda. Comprueba WOO_URL y que el servidor tenga salida a internet.`,
+      `No se ha podido conectar con la tienda. Comprueba la dirección y que el servidor tenga salida a internet.`,
     );
   }
 
