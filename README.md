@@ -27,7 +27,8 @@ todos los datos se quedan en un fichero o en una base de datos que controlas tú
 
 ## Puesta en marcha
 
-Requisitos: [Node.js](https://nodejs.org) 20 o superior (recomendado 22) y Git.
+Requisitos: [Node.js](https://nodejs.org) 20 o superior y Git. Probado sobre
+Node 22.22 y 24.21 (la LTS actual); con cualquiera de las dos va igual.
 
 ```bash
 git clone https://github.com/vinilosyserigrafiacom/crm.git
