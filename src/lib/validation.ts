@@ -42,6 +42,29 @@ export type OrderStatus = (typeof ORDER_STATUSES)[number];
 export const DOC_TYPES = ["QUOTE", "ORDER", "INVOICE"] as const;
 export type DocType = (typeof DOC_TYPES)[number];
 
+export const SEGMENT_KINDS = ["STATIC", "DYNAMIC"] as const;
+export type SegmentKind = (typeof SEGMENT_KINDS)[number];
+
+export const SEGMENT_KIND_LABELS: Record<SegmentKind, string> = {
+  STATIC: "Lista fija",
+  DYNAMIC: "Por reglas",
+};
+
+/**
+ * Columnas del tablero de taller.
+ *
+ * Los anulados no tienen columna: son un callejón sin salida y ocuparían sitio
+ * en una pantalla que se mira para saber qué hay que sacar hoy. Se consultan
+ * desde el listado de pedidos.
+ */
+export const BOARD_COLUMNS: OrderStatus[] = [
+  "DRAFT",
+  "CONFIRMED",
+  "IN_PRODUCTION",
+  "READY",
+  "DELIVERED",
+];
+
 // ---------------------------------------------------------------------------
 // Etiquetas en castellano
 // ---------------------------------------------------------------------------
@@ -170,6 +193,8 @@ export const customerSchema = z.object({
   notes: optionalText,
   tags: optionalText,
   active: checkbox,
+  marketingOptOut: checkbox,
+  marketingConsentSource: optionalText,
 });
 export type CustomerInput = z.infer<typeof customerSchema>;
 
@@ -180,6 +205,7 @@ export const contactSchema = z.object({
   phone: optionalText,
   notes: optionalText,
   isPrimary: checkbox,
+  marketingOptOut: checkbox,
 });
 
 export const addressSchema = z.object({
@@ -250,6 +276,15 @@ export const orderSchema = z.object({
   dueDate: z.string().optional().nullable(),
 });
 export type OrderInput = z.infer<typeof orderSchema>;
+
+export const segmentSchema = z.object({
+  name: requiredText("El nombre del grupo", 80),
+  description: optionalText,
+  kind: z.enum(SEGMENT_KINDS),
+  onlyWithConsent: checkbox,
+  includeAllContacts: checkbox,
+  active: checkbox,
+});
 
 export const companySettingsSchema = z.object({
   legalName: requiredText("La razón social"),

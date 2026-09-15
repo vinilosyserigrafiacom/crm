@@ -39,6 +39,7 @@ model User {
   quotes    Quote[]
   orders    Order[]
   auditLogs AuditLog[]
+  segments  Segment[]
 }
 
 /// Datos del emisor. Tabla de una sola fila (id = "default"): hace falta para
@@ -111,6 +112,21 @@ model Customer {
   tags   String?
   active Boolean @default(true)
 
+  // --- Comunicaciones comerciales ---
+  //
+  // La LSSI solo permite enviar publicidad por correo a quien la ha
+  // consentido, o a clientes propios sobre productos similares a los que ya
+  // compraron. Por eso se guardan las dos cosas por separado: la baja, que
+  // manda siempre, y la fecha del consentimiento expreso, que es lo que
+  // permite incluir a alguien en un envío que no se ampara en la relación
+  // comercial previa.
+  /// Se ha dado de baja de las comunicaciones. Excluye siempre.
+  marketingOptOut        Boolean   @default(false)
+  /// Cuándo dio su consentimiento expreso. Null = no consta.
+  marketingConsentAt     DateTime?
+  /// De dónde salió el consentimiento: formulario web, pedido, feria...
+  marketingConsentSource String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -118,6 +134,7 @@ model Customer {
   addresses Address[]
   quotes    Quote[]
   orders    Order[]
+  segments  SegmentMember[]
 
   @@index([legalName])
   @@index([taxId])
@@ -135,6 +152,11 @@ model Contact {
   phone     String?
   notes     String?
   isPrimary Boolean @default(false)
+
+  /// Baja y consentimiento propios del contacto: una persona puede darse de
+  /// baja sin que lo haga la empresa para la que trabaja.
+  marketingOptOut    Boolean   @default(false)
+  marketingConsentAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -345,6 +367,10 @@ model Order {
   /// Estado de taller. DRAFT | CONFIRMED | IN_PRODUCTION | READY | DELIVERED | CANCELLED
   status String @default("DRAFT")
 
+  /// Orden manual dentro de su columna del tablero. Se renumera de 10 en 10 al
+  /// soltar una tarjeta, para poder insertar entre dos sin tocar el resto.
+  boardPosition Int @default(0)
+
   orderDate   DateTime  @default(now())
   /// Fecha comprometida de entrega.
   dueDate     DateTime?
@@ -377,7 +403,9 @@ model Order {
   @@index([customerId])
   @@index([status])
   @@index([orderDate])
+  @@index([dueDate])
   @@index([quoteId])
+  @@index([status, boardPosition])
 }
 
 model OrderLine {
@@ -442,4 +470,67 @@ model AuditLog {
 
   @@index([entity, entityId])
   @@index([at])
+}
+
+// ---------------------------------------------------------------------------
+// Segmentación para newsletters
+// ---------------------------------------------------------------------------
+
+/// Grupo de destinatarios para una campaña de correo.
+///
+/// Hay dos formas de construirlo y conviven a propósito:
+///
+///   * ESTATICO: se eligen los clientes a mano. Va bien para una lista cerrada
+///     («los diez de la feria de marzo») y no cambia sola.
+///   * DINAMICO: se guardan unas reglas y la lista se recalcula cada vez que se
+///     mira. Va bien para «clientes de textil que han pedido este año», que se
+///     mantiene al día sin tocar nada.
+///
+/// El segmento NO guarda la lista de correos resuelta. Se calcula al vuelo para
+/// que una baja surta efecto de inmediato en todos los grupos, sin depender de
+/// acordarse de refrescar nada.
+model Segment {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  description String?
+  kind        String  @default("STATIC") // STATIC | DYNAMIC
+
+  /// Reglas del segmento dinámico, en JSON. Ver SegmentRules en
+  /// src/lib/segments.ts, que es donde se validan y se traducen a consulta.
+  rulesJson String @default("{}")
+
+  /// Exigir consentimiento expreso, y no solo la ausencia de baja.
+  ///
+  /// Por defecto está activado: es lo que corresponde a una newsletter
+  /// comercial. Se puede desactivar para envíos amparados en la relación con el
+  /// cliente (art. 21.2 LSSI), pero entonces hay que saber lo que se hace.
+  onlyWithConsent Boolean @default(true)
+
+  /// Incluir a todos los contactos del cliente en lugar de solo al principal.
+  includeAllContacts Boolean @default(false)
+
+  active Boolean @default(true)
+
+  createdById String?
+  createdBy   User?   @relation(fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members SegmentMember[]
+
+  @@index([active])
+}
+
+/// Pertenencia de un cliente a un segmento estático.
+model SegmentMember {
+  id         String   @id @default(cuid())
+  segmentId  String
+  segment    Segment  @relation(fields: [segmentId], references: [id], onDelete: Cascade)
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  addedAt    DateTime @default(now())
+
+  @@unique([segmentId, customerId])
+  @@index([customerId])
 }

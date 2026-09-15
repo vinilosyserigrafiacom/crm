@@ -134,6 +134,7 @@ const CUSTOMERS = [
     phone: "983 45 67 89",
     paymentTermsDays: 30,
     tags: "rotulacion, recurrente",
+    marketingConsentSource: "Casilla del formulario de contacto de la web",
     contact: { name: "Nuria Arribas", jobTitle: "Gerencia", phone: "620 11 22 33" },
     address: {
       line1: "Polígono San Cristóbal, calle Plata 14",
@@ -152,6 +153,7 @@ const CUSTOMERS = [
     phone: "983 22 33 44",
     paymentTermsDays: 15,
     tags: "textil, serigrafia",
+    marketingConsentSource: "Alta en la feria de material deportivo",
     contact: { name: "Iván Redondo", jobTitle: "Coordinación", phone: "699 88 77 66" },
     address: {
       line1: "Avenida del Deporte 3",
@@ -170,6 +172,7 @@ const CUSTOMERS = [
     phone: "947 11 22 33",
     paymentTermsDays: 0,
     tags: "escaparate",
+    marketingConsentSource: undefined,
     contact: { name: "Marta Sanz", jobTitle: "Propiedad", phone: "610 55 44 33" },
     address: {
       line1: "Calle Mayor 8",
@@ -187,6 +190,7 @@ const CUSTOMERS = [
     phone: "656 78 90 12",
     paymentTermsDays: 0,
     tags: "particular",
+    marketingConsentSource: undefined,
     address: {
       line1: "Calle Zurradores 22, 3º B",
       postalCode: "47005",
@@ -306,6 +310,11 @@ async function main() {
         phone: customer.phone,
         paymentTermsDays: customer.paymentTermsDays,
         tags: customer.tags,
+        // Solo los dos primeros han dado su consentimiento: así se ve en las
+        // pantallas de newsletters la diferencia entre quien entra en un envío
+        // comercial y quien no.
+        marketingConsentSource: customer.marketingConsentSource,
+        marketingConsentAt: customer.marketingConsentSource ? daysFromNow(-60) : null,
         contacts: customer.contact
           ? { create: { ...customer.contact, isPrimary: true } }
           : undefined,
@@ -517,6 +526,38 @@ async function main() {
       { docType: "QUOTE", series: "A", year, next: 3 },
       { docType: "ORDER", series: "A", year, next: 3 },
     ],
+  });
+
+  // --- Grupos de newsletter de ejemplo -------------------------------------
+
+  await prisma.segment.create({
+    data: {
+      name: "Clientes de textil",
+      description: "Para avisar de novedades en serigrafía sobre prenda.",
+      kind: "DYNAMIC",
+      createdById: admin.id,
+      rulesJson: JSON.stringify({
+        kinds: [],
+        tagsAny: ["textil"],
+        provinces: [],
+        onlyActive: true,
+        orderedSinceMonths: null,
+        minSpentCents: null,
+      }),
+    },
+  });
+
+  const recurrentes = await prisma.segment.create({
+    data: {
+      name: "Recurrentes de rotulación",
+      description: "Lista corta para el aviso de revisión anual de vinilos.",
+      kind: "STATIC",
+      createdById: admin.id,
+      includeAllContacts: true,
+    },
+  });
+  await prisma.segmentMember.create({
+    data: { segmentId: recurrentes.id, customerId: customerId("C-0001") },
   });
 
   console.log("\nBase de datos preparada.\n");

@@ -36,7 +36,21 @@ function readCustomerForm(formData: FormData) {
     notes: text(formData, "notes"),
     tags: text(formData, "tags"),
     active: bool(formData, "active"),
+    marketingOptOut: bool(formData, "marketingOptOut"),
+    marketingConsentSource: text(formData, "marketingConsentSource"),
   };
+}
+
+/**
+ * Fecha del consentimiento expreso.
+ *
+ * No la teclea nadie: se pone al marcar la casilla y se borra al desmarcarla.
+ * Si ya constaba, se conserva la original en lugar de refrescarla, porque lo
+ * que importa es cuándo lo dio, no la última vez que se guardó la ficha.
+ */
+function resolveConsentAt(marcada: boolean, anterior: Date | null): Date | null {
+  if (!marcada) return null;
+  return anterior ?? new Date();
 }
 
 export async function createCustomerAction(
@@ -59,7 +73,11 @@ export async function createCustomerAction(
       // simultáneas no reciban el mismo C-0001.
       const code = await reserveCustomerCode(tx);
       const customer = await tx.customer.create({
-        data: { ...parsed.data, code },
+        data: {
+          ...parsed.data,
+          code,
+          marketingConsentAt: resolveConsentAt(bool(formData, "marketingConsent"), null),
+        },
       });
       await recordAudit(tx, {
         userId: user.id,
@@ -109,7 +127,13 @@ export async function updateCustomerAction(
   await prisma.$transaction(async (tx) => {
     const after = await tx.customer.update({
       where: { id: customerId },
-      data: parsed.data,
+      data: {
+        ...parsed.data,
+        marketingConsentAt: resolveConsentAt(
+          bool(formData, "marketingConsent"),
+          before.marketingConsentAt,
+        ),
+      },
     });
 
     // Solo se registran los campos que han cambiado: un histórico con el

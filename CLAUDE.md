@@ -43,6 +43,12 @@ Solo se borran borradores sin número.
 **Toda mutación deja rastro.** Las acciones de servidor llaman a `recordAudit()`
 dentro de su transacción. La cadena de hashes se comprueba desde Ajustes.
 
+**Una baja de newsletter manda siempre.** `marketingOptOut` excluye al cliente o
+al contacto de todos los grupos, por encima de cualquier regla y del propio
+ajuste del grupo. La baja del cliente arrastra también a sus contactos. Y las
+listas de destinatarios no se guardan nunca: se resuelven al mirarlas, para que
+una baja no dependa de refrescar nada.
+
 ## Cómo está organizado
 
 - Las mutaciones son **server actions** en `actions.ts` junto a cada módulo, no
@@ -68,6 +74,22 @@ dentro de su transacción. La cadena de hashes se comprueba desde Ajustes.
 - Las tablas van dentro de `.table-wrap`. Si una tabla queda dentro de un `div`
   que es elemento de rejilla, ese `div` necesita `min-w-0` o la tabla saca
   scroll horizontal a toda la página en móvil.
+- **Cuidado con `sr-only` dentro de contenedores con scroll horizontal.** Es
+  `position:absolute`, y sin un ancestro posicionado su bloque contenedor pasa a
+  ser el viewport: deja de estar recortado y estira el documento a lo ancho
+  aunque no se vea nada. Por eso `.card` lleva `relative`. Si metes un `sr-only`
+  fuera de una tarjeta y dentro de algo con scroll, posiciona su contenedor.
+- El tablero y el calendario (`src/app/(app)/taller/`) usan la API de arrastre
+  del navegador, sin librería. No funciona con el dedo, así que **cualquier cosa
+  que se pueda hacer arrastrando tiene que poder hacerse también sin arrastrar**:
+  el menú «Mover a…» de las tarjetas no es un extra, es la vía principal en el
+  móvil del taller.
+- Las acciones de `taller/actions.ts` reciben un objeto y no un `FormData`,
+  porque las llama el código de arrastre. Siguen siendo endpoints públicos: se
+  validan con Zod igual que un formulario.
+- El cambio de estado de un pedido vive en `src/lib/orders-server.ts` y lo usan
+  la ficha y el tablero. No lo dupliques: si divergen, arrastrar una tarjeta y
+  pulsar un botón numerarían de forma distinta.
 
 ## Al cambiar el esquema
 
@@ -77,6 +99,14 @@ npm run db:migrate    # crea y aplica la migración
 
 Las migraciones se comiten. Si añades un tipo de documento, añádelo también a
 `DOC_TYPES` y al mapa de prefijos de `src/lib/numbering.ts`.
+
+## Newsletters
+
+`src/lib/segments.ts` tiene la parte con reglas, y está separada en dos a
+propósito: `recipientsForCustomer()` es pura y decide quién recibe un correo
+—esa es la que hay que probar cuando la toques—, y `resolveAudience()` pone la
+consulta alrededor. La exportación a CSV neutraliza las fórmulas (`=`, `+`, `-`,
+`@`) porque los nombres los teclea una persona y el fichero se abre en Excel.
 
 ## Lo que viene después
 

@@ -56,10 +56,24 @@ const NAV: NavItem[] = [
     icon: <Icon d="M3 7h18l-1.5 12a2 2 0 0 1-2 1.8H6.5a2 2 0 0 1-2-1.8L3 7Zm5 0V5a4 4 0 0 1 8 0v2" />,
   },
   {
+    href: "/taller",
+    label: "Taller",
+    match: "/taller",
+    icon: (
+      <Icon d="M3 21h18M5 21V10l7-5 7 5v11M9 21v-6h6v6M9.5 12.5h5" />
+    ),
+  },
+  {
     href: "/catalogo",
     label: "Catálogo",
     match: "/catalogo",
     icon: <Icon d="M4 6h16M4 12h16M4 18h10" />,
+  },
+  {
+    href: "/newsletters",
+    label: "Newsletters",
+    match: "/newsletters",
+    icon: <Icon d="m3 7 9 6 9-6M3 7v10h18V7M3 7l9-4 9 4" />,
   },
   {
     href: "/ajustes",

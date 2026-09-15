@@ -71,13 +71,17 @@ body {
 
 @layer components {
   /* --- Superficies --- */
-  /* min-w-0 no es decorativo: la tarjeta suele ser un elemento de rejilla, y
-     sin él su ancho mínimo lo dicta la tabla que lleva dentro, que estira la
-     columna y saca scroll horizontal a toda la página en móvil. Con min-w-0 la
-     tabla se queda con su propio scroll dentro de .table-wrap, que es lo que
-     se quiere. */
+  /* Dos utilidades que no son decorativas:
+     - min-w-0: la tarjeta suele ser un elemento de rejilla, y sin él su ancho
+       mínimo lo dicta la tabla que lleva dentro, que estira la columna y saca
+       scroll horizontal a toda la página en móvil.
+     - relative: cualquier .sr-only dentro de la tarjeta es position:absolute, y
+       sin un ancestro posicionado su bloque contenedor pasa a ser el viewport.
+       Entonces deja de estar recortado por los contenedores con scroll —como
+       las columnas del tablero— y estira el documento a lo ancho aunque no se
+       vea nada. */
   .card {
-    @apply min-w-0 rounded-xl border border-slate-200 bg-white shadow-sm;
+    @apply relative min-w-0 rounded-xl border border-slate-200 bg-white shadow-sm;
   }
   .card-header {
     @apply flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 sm:px-5;

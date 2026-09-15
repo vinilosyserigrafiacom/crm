@@ -31,6 +31,9 @@ export interface CustomerFormValues {
   notes: string | null;
   tags: string | null;
   active: boolean;
+  marketingOptOut: boolean;
+  marketingConsentAt: Date | null;
+  marketingConsentSource: string | null;
 }
 
 export const EMPTY_CUSTOMER: CustomerFormValues = {
@@ -51,6 +54,9 @@ export const EMPTY_CUSTOMER: CustomerFormValues = {
   notes: null,
   tags: null,
   active: true,
+  marketingOptOut: false,
+  marketingConsentAt: null,
+  marketingConsentSource: null,
 };
 
 const TAX_ID_TYPE_LABELS: Record<string, string> = {
@@ -80,6 +86,8 @@ export function CustomerForm({
   const [countryCode, setCountryCode] = useState(values.countryCode);
   const [taxId, setTaxId] = useState(values.taxId ?? "");
   const [vatExempt, setVatExempt] = useState(values.vatExempt);
+  const [optOut, setOptOut] = useState(values.marketingOptOut);
+  const [consent, setConsent] = useState(values.marketingConsentAt !== null);
 
   const warning = taxIdWarning(taxId, countryCode);
 
@@ -338,6 +346,73 @@ export function CustomerForm({
               </Field>
             )}
           </div>
+        </div>
+      </section>
+
+      <section className="card">
+        <div className="card-header">
+          <h2 className="card-title">Comunicaciones comerciales</h2>
+          <p className="text-xs text-slate-500">Para los grupos de newsletter.</p>
+        </div>
+        <div className="card-body space-y-4">
+          <label className="flex items-start gap-2.5 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              name="marketingOptOut"
+              className="mt-0.5 h-4 w-4 rounded border-slate-300"
+              checked={optOut}
+              onChange={(e) => setOptOut(e.target.checked)}
+            />
+            <span>
+              Se ha dado de baja
+              <span className="block text-xs text-slate-500">
+                Queda fuera de todos los envíos, de cualquier grupo, aunque antes hubiera dado
+                su consentimiento.
+              </span>
+            </span>
+          </label>
+
+          {!optOut && (
+            <div className="space-y-3 rounded-lg bg-slate-50 p-3">
+              <label className="flex items-start gap-2.5 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  name="marketingConsent"
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300"
+                  checked={consent}
+                  onChange={(e) => setConsent(e.target.checked)}
+                />
+                <span>
+                  Ha dado su consentimiento expreso
+                  <span className="block text-xs text-slate-500">
+                    {values.marketingConsentAt
+                      ? `Consta desde el ${new Intl.DateTimeFormat("es-ES").format(new Date(values.marketingConsentAt))}.`
+                      : "La fecha se guarda al marcar la casilla."}
+                  </span>
+                </span>
+              </label>
+
+              {consent && (
+                <Field
+                  label="De dónde salió"
+                  htmlFor="marketingConsentSource"
+                  hint="Hay que poder acreditarlo si alguien lo reclama."
+                >
+                  <input
+                    id="marketingConsentSource"
+                    name="marketingConsentSource"
+                    className="input"
+                    defaultValue={prefill(
+                      state,
+                      "marketingConsentSource",
+                      values.marketingConsentSource ?? "",
+                    )}
+                    placeholder="Casilla del formulario web, feria de marzo…"
+                  />
+                </Field>
+              )}
+            </div>
+          )}
         </div>
       </section>
 

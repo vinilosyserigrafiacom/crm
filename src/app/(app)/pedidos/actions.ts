@@ -2,20 +2,19 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { recordAudit } from "@/lib/audit";
-import { reserveDocumentNumber } from "@/lib/numbering";
-import { loadCustomerForDocument, snapshotFor } from "@/lib/document-server";
+import { loadCustomerForDocument } from "@/lib/document-server";
+import {
+  applyStatusChange,
+  prepareSnapshotIfNeeded,
+  repositionCard,
+} from "@/lib/orders-server";
 import { prepareDocument, totalsData } from "@/lib/documents";
 import { formatCents } from "@/lib/money";
 import { fromDateInput } from "@/lib/format";
-import {
-  ORDER_STATUS_LABELS,
-  ORDER_TRANSITIONS,
-  type OrderStatus,
-} from "@/lib/validation";
+import type { OrderStatus } from "@/lib/validation";
 import { snapshotValues, text, type FormState } from "@/lib/form";
 
 export async function createOrderAction(
@@ -166,6 +165,7 @@ export async function changeOrderStatusAction(
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     select: {
+      id: true,
       status: true,
       number: true,
       series: true,
@@ -175,44 +175,26 @@ export async function changeOrderStatusAction(
   });
   if (!order) return;
 
-  const allowed = ORDER_TRANSITIONS[order.status as OrderStatus] ?? [];
-  if (!allowed.includes(target)) return;
-
-  const customer = await loadCustomerForDocument(order.customerId);
-  const snapshot =
-    order.number || !customer ? null : await snapshotFor(customer);
+  const snapshot = await prepareSnapshotIfNeeded(order, target);
 
   await prisma.$transaction(async (tx) => {
-    const data: Prisma.OrderUpdateInput = { status: target };
-
-    if (!order.number && target !== "CANCELLED") {
-      const reserved = await reserveDocumentNumber(
-        tx,
-        "ORDER",
-        order.series,
-        order.year,
-      );
-      data.number = reserved.number;
-      if (snapshot) data.billingSnapshot = snapshot;
-    }
-    if (target === "DELIVERED") data.deliveredAt = new Date();
-    // Si se devuelve a producción se borra la fecha de entrega: dejarla puesta
-    // haría que el pedido apareciese como entregado en los informes.
-    if (target === "IN_PRODUCTION") data.deliveredAt = null;
-
-    const updated = await tx.order.update({ where: { id: orderId }, data });
-
-    await recordAudit(tx, {
+    const resultado = await applyStatusChange(tx, {
+      order,
+      target,
       userId: user.id,
-      entity: "Order",
-      entityId: orderId,
-      action: data.number ? "ISSUE" : "STATUS_CHANGE",
-      summary: `Pedido ${updated.number ?? "(borrador)"}: ${ORDER_STATUS_LABELS[order.status as OrderStatus]} → ${ORDER_STATUS_LABELS[target]}`,
-      data: { de: order.status, a: target, numero: updated.number },
+      snapshot,
     });
+    // Desde la ficha los botones solo ofrecen transiciones válidas, así que un
+    // rechazo aquí solo puede venir de que alguien haya movido el pedido desde
+    // otra pantalla mientras tanto. Se deja como estaba y la página recargada
+    // mostrará el estado real.
+    if (!resultado.ok) return;
+
+    await repositionCard(tx, { orderId, status: target, beforeId: null });
   });
 
   revalidatePath("/pedidos");
+  revalidatePath("/taller");
   revalidatePath(`/pedidos/${orderId}`);
 }
 

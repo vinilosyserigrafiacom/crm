@@ -20,6 +20,15 @@ todos los datos se quedan en un fichero o en una base de datos que controlas tú
 - **Pedidos.** Nacen de un presupuesto aceptado con un clic, o directamente si
   no hubo presupuesto. Estados de taller (confirmado, en producción, listo,
   entregado) y fecha de entrega comprometida, con aviso de retrasos.
+- **Taller.** Un tablero de tarjetas al estilo Trello, con una columna por
+  estado del pedido: se arrastra la tarjeta de «En producción» a «Listo» y el
+  pedido cambia de estado. Y un calendario mensual de entregas donde arrastrar
+  un trabajo a otro día cambia su fecha comprometida. Desde el móvil, donde no
+  hay arrastre, cada tarjeta lleva un menú «Mover a…».
+- **Newsletters.** Grupos de destinatarios para las campañas. Pueden ser listas
+  fijas elegidas a mano o grupos por reglas (etiqueta, tipo de cliente,
+  provincia, actividad reciente, gasto acumulado) que se recalculan solos. La
+  lista se exporta en CSV para Mailchimp, Brevo o el gestor que uses.
 - **Catálogo.** Los trabajos y materiales que se repiten, con precio, coste y
   margen, para rellenar líneas de presupuesto sin teclear.
 - **Resumen.** Lo que hay abierto: presupuestos sin respuesta, pedidos en curso,
@@ -68,7 +77,7 @@ hayas visto cómo funciona.
 | `npm run dev` | Servidor de desarrollo con recarga en caliente |
 | `npm run build` / `npm start` | Compilar y servir en producción |
 | `npm run check` | Tipos, linter y pruebas de una tacada |
-| `npm test` | Pruebas del cálculo de importes y de la validación de NIF |
+| `npm test` | Pruebas de importes, NIF, segmentación y tablero |
 | `npm run db:migrate` | Crear una migración nueva tras tocar el esquema |
 | `npm run db:deploy` | Aplicar migraciones en producción |
 | `npm run db:seed` | Datos iniciales (no hace nada si ya hay usuarios) |
@@ -139,7 +148,20 @@ registros de facturación; se estrena aquí con clientes, presupuestos y pedidos
 para que el mecanismo esté rodado cuando se añadan las facturas.
 
 **Nada se borra de verdad.** Clientes y artículos se archivan o desactivan.
-Solo se pueden borrar los borradores que nunca han tenido número.
+Solo se pueden borrar los borradores que nunca han tenido número, y los grupos
+de newsletter, que no tienen valor contable.
+
+**Las listas de correo no se guardan, se calculan.** Un grupo de newsletter
+nunca almacena la lista de destinatarios: se resuelve cada vez que se mira o se
+exporta. Así una baja surte efecto de inmediato en todos los grupos, sin
+depender de que alguien se acuerde de refrescar una lista congelada.
+
+**Una baja manda siempre.** Si un cliente o un contacto se da de baja, queda
+fuera de todos los envíos aunque antes hubiera dado su consentimiento, y aunque
+el grupo esté configurado para no exigirlo. Los grupos piden por defecto
+consentimiento expreso, que es lo que corresponde a una newsletter comercial;
+se puede desactivar para envíos amparados en la relación con el cliente
+(art. 21.2 LSSI), y la pantalla avisa cuando un grupo está en ese modo.
 
 ## Qué falta para facturar
 
@@ -167,12 +189,16 @@ scripts/
   setup.mjs            Instalación en un solo comando
 src/
   app/
-    (app)/             Páginas con sesión: resumen, clientes, presupuestos…
+    (app)/             Páginas con sesión: resumen, clientes, presupuestos,
+                       taller (tablero y calendario), newsletters…
     login/             Acceso
     api/health         Comprobación de estado para el monitor
   components/          Editor de documentos, hoja imprimible, navegación
   lib/
     money.ts           Cálculo de importes (con pruebas)
+    segments.ts        Reglas y resolución de destinatarios (con pruebas)
+    board.ts           Colocación de tarjetas en el tablero (con pruebas)
+    orders-server.ts   Cambios de estado del pedido, compartidos
     documents.ts       Lógica común de presupuestos y pedidos
     numbering.ts       Series correlativas
     audit.ts           Registro encadenado por hash

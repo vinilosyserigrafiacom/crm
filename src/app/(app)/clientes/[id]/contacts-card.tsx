@@ -12,6 +12,7 @@ export interface ContactRow {
   phone: string | null;
   notes: string | null;
   isPrimary: boolean;
+  marketingOptOut: boolean;
 }
 
 type SaveAction = (state: FormState, formData: FormData) => Promise<FormState>;
@@ -93,19 +94,30 @@ function ContactForm({
         />
       </Field>
 
-      <label className="flex items-center gap-2 text-sm text-slate-700">
-        <input
-          type="checkbox"
-          name="isPrimary"
-          className="h-4 w-4 rounded border-slate-300"
-          defaultChecked={prefillChecked(
-            state,
-            "isPrimary",
-            contact?.isPrimary ?? false,
-          )}
-        />
-        Contacto principal
-      </label>
+      <div className="flex flex-wrap gap-4">
+        <label className="flex items-center gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            name="isPrimary"
+            className="h-4 w-4 rounded border-slate-300"
+            defaultChecked={prefillChecked(state, "isPrimary", contact?.isPrimary ?? false)}
+          />
+          Contacto principal
+        </label>
+        <label className="flex items-center gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            name="marketingOptOut"
+            className="h-4 w-4 rounded border-slate-300"
+            defaultChecked={prefillChecked(
+              state,
+              "marketingOptOut",
+              contact?.marketingOptOut ?? false,
+            )}
+          />
+          De baja de las newsletters
+        </label>
+      </div>
 
       <div className="flex items-center gap-2">
         <SubmitButton className="btn-primary btn-sm">
@@ -181,6 +193,9 @@ export function ContactsCard({
                     {contact.name}
                     {contact.isPrimary && (
                       <span className="pill-green">Principal</span>
+                    )}
+                    {contact.marketingOptOut && (
+                      <span className="pill-slate">Sin newsletters</span>
                     )}
                   </p>
                   {contact.jobTitle && (
