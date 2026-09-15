@@ -2,8 +2,12 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { ErrorBanner, Field, SubmitButton } from "@/components/ui";
-import { ADDRESS_KIND_LABELS, ADDRESS_KINDS, type AddressKind } from "@/lib/validation";
-import type { FormState } from "@/lib/form";
+import {
+  ADDRESS_KIND_LABELS,
+  ADDRESS_KINDS,
+  type AddressKind,
+} from "@/lib/validation";
+import { prefill, prefillChecked, type FormState } from "@/lib/form";
 
 export interface AddressRow {
   id: string;
@@ -48,7 +52,7 @@ function AddressForm({
             id="address-kind"
             name="kind"
             className="input"
-            defaultValue={address?.kind ?? "BILLING"}
+            defaultValue={prefill(state, "kind", address?.kind ?? "BILLING")}
           >
             {ADDRESS_KINDS.map((kind) => (
               <option key={kind} value={kind}>
@@ -57,22 +61,31 @@ function AddressForm({
             ))}
           </select>
         </Field>
-        <Field label="Etiqueta" htmlFor="address-label" hint="«Nave 2», «Tienda centro»…">
+        <Field
+          label="Etiqueta"
+          htmlFor="address-label"
+          hint="«Nave 2», «Tienda centro»…"
+        >
           <input
             id="address-label"
             name="label"
             className="input"
-            defaultValue={address?.label ?? ""}
+            defaultValue={prefill(state, "label", address?.label ?? "")}
           />
         </Field>
       </div>
 
-      <Field label="Dirección" htmlFor="address-line1" error={errors.line1} required>
+      <Field
+        label="Dirección"
+        htmlFor="address-line1"
+        error={errors.line1}
+        required
+      >
         <input
           id="address-line1"
           name="line1"
           className={`input ${errors.line1 ? "input-error" : ""}`}
-          defaultValue={address?.line1 ?? ""}
+          defaultValue={prefill(state, "line1", address?.line1 ?? "")}
           required
           autoFocus
         />
@@ -82,7 +95,7 @@ function AddressForm({
           id="address-line2"
           name="line2"
           className="input"
-          defaultValue={address?.line2 ?? ""}
+          defaultValue={prefill(state, "line2", address?.line2 ?? "")}
           placeholder="Piso, puerta, polígono…"
         />
       </Field>
@@ -93,7 +106,11 @@ function AddressForm({
             id="address-cp"
             name="postalCode"
             className="input"
-            defaultValue={address?.postalCode ?? ""}
+            defaultValue={prefill(
+              state,
+              "postalCode",
+              address?.postalCode ?? "",
+            )}
             inputMode="numeric"
           />
         </Field>
@@ -102,7 +119,7 @@ function AddressForm({
             id="address-city"
             name="city"
             className="input"
-            defaultValue={address?.city ?? ""}
+            defaultValue={prefill(state, "city", address?.city ?? "")}
           />
         </Field>
         <Field label="Provincia" htmlFor="address-province">
@@ -110,7 +127,7 @@ function AddressForm({
             id="address-province"
             name="province"
             className="input"
-            defaultValue={address?.province ?? ""}
+            defaultValue={prefill(state, "province", address?.province ?? "")}
           />
         </Field>
         <Field label="País" htmlFor="address-country">
@@ -118,7 +135,11 @@ function AddressForm({
             id="address-country"
             name="countryCode"
             className="input uppercase"
-            defaultValue={address?.countryCode ?? "ES"}
+            defaultValue={prefill(
+              state,
+              "countryCode",
+              address?.countryCode ?? "ES",
+            )}
             maxLength={2}
           />
         </Field>
@@ -129,7 +150,11 @@ function AddressForm({
           type="checkbox"
           name="isDefault"
           className="h-4 w-4 rounded border-slate-300"
-          defaultChecked={address?.isDefault ?? false}
+          defaultChecked={prefillChecked(
+            state,
+            "isDefault",
+            address?.isDefault ?? false,
+          )}
         />
         Dirección por defecto para este tipo
       </label>
@@ -174,7 +199,11 @@ export function AddressesCard({
       <div className="card-header">
         <h2 className="card-title">Direcciones</h2>
         {editing !== "new" && (
-          <button type="button" className="btn-secondary btn-sm" onClick={() => setEditing("new")}>
+          <button
+            type="button"
+            className="btn-secondary btn-sm"
+            onClick={() => setEditing("new")}
+          >
             Añadir dirección
           </button>
         )}
@@ -188,28 +217,46 @@ export function AddressesCard({
         )}
 
         {editing === "new" && (
-          <AddressForm address={null} save={save} onDone={() => setEditing(null)} />
+          <AddressForm
+            address={null}
+            save={save}
+            onDone={() => setEditing(null)}
+          />
         )}
 
         <ul className="divide-y divide-slate-100">
           {addresses.map((address) =>
             editing === address.id ? (
               <li key={address.id} className="py-3">
-                <AddressForm address={address} save={save} onDone={() => setEditing(null)} />
+                <AddressForm
+                  address={address}
+                  save={save}
+                  onDone={() => setEditing(null)}
+                />
               </li>
             ) : (
-              <li key={address.id} className="flex flex-wrap items-start gap-3 py-3">
+              <li
+                key={address.id}
+                className="flex flex-wrap items-start gap-3 py-3"
+              >
                 <div className="min-w-0 flex-1">
                   <p className="flex flex-wrap items-center gap-2 text-sm">
                     <span className="pill-slate">
-                      {ADDRESS_KIND_LABELS[address.kind as AddressKind] ?? address.kind}
+                      {ADDRESS_KIND_LABELS[address.kind as AddressKind] ??
+                        address.kind}
                     </span>
                     {address.label && (
-                      <span className="font-medium text-slate-900">{address.label}</span>
+                      <span className="font-medium text-slate-900">
+                        {address.label}
+                      </span>
                     )}
-                    {address.isDefault && <span className="pill-green">Por defecto</span>}
+                    {address.isDefault && (
+                      <span className="pill-green">Por defecto</span>
+                    )}
                   </p>
-                  <p className="mt-1 text-xs text-slate-600">{oneLine(address)}</p>
+                  <p className="mt-1 text-xs text-slate-600">
+                    {oneLine(address)}
+                  </p>
                 </div>
 
                 <div className="flex items-center gap-1">

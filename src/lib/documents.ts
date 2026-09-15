@@ -1,8 +1,16 @@
 import { z } from "zod";
-import { computeDocumentTotals, computeLine, type DocumentTotals } from "@/lib/money";
-import { documentLineSchema, fieldErrors, type DocumentLineInput } from "@/lib/validation";
+import {
+  computeDocumentTotals,
+  computeLine,
+  type DocumentTotals,
+} from "@/lib/money";
+import {
+  documentLineSchema,
+  fieldErrors,
+  type DocumentLineInput,
+} from "@/lib/validation";
 import { fromDateInput } from "@/lib/format";
-import { text, type FormState } from "@/lib/form";
+import { snapshotValues, text, type FormState } from "@/lib/form";
 import { parseRateToBasisPoints } from "@/lib/money";
 
 /**
@@ -16,7 +24,9 @@ import { parseRateToBasisPoints } from "@/lib/money";
  * desarrollo del navegador.
  */
 
-const linesSchema = z.array(documentLineSchema).min(1, "Añade al menos una línea con concepto.");
+const linesSchema = z
+  .array(documentLineSchema)
+  .min(1, "Añade al menos una línea con concepto.");
 
 /** Una línea ya calculada, lista para guardar en la base de datos. */
 export interface PreparedLine {
@@ -51,7 +61,11 @@ export interface PreparedDocument {
 
 /** Descarta las líneas vacías que quedan al añadir una fila y no rellenarla. */
 function isBlank(line: DocumentLineInput): boolean {
-  return line.description.trim() === "" && line.quantity === 0 && line.unitPrice === 0;
+  return (
+    line.description.trim() === "" &&
+    line.quantity === 0 &&
+    line.unitPrice === 0
+  );
 }
 
 export function prepareDocument(
@@ -62,20 +76,36 @@ export function prepareDocument(
   if (customerId === "") {
     return {
       ok: false,
-      state: { error: "Selecciona un cliente.", errors: { customerId: "Obligatorio" } },
+      state: {
+        error: "Selecciona un cliente.",
+        errors: { customerId: "Obligatorio" },
+        values: snapshotValues(formData),
+      },
     };
   }
 
   const primaryDate = fromDateInput(text(formData, "primaryDate"));
   if (!primaryDate) {
-    return { ok: false, state: { error: "La fecha del documento no es válida." } };
+    return {
+      ok: false,
+      state: {
+        error: "La fecha del documento no es válida.",
+        values: snapshotValues(formData),
+      },
+    };
   }
 
   let rawLines: unknown;
   try {
     rawLines = JSON.parse(text(formData, "lines") || "[]");
   } catch {
-    return { ok: false, state: { error: "No se han podido leer las líneas del documento." } };
+    return {
+      ok: false,
+      state: {
+        error: "No se han podido leer las líneas del documento.",
+        values: snapshotValues(formData),
+      },
+    };
   }
 
   const parsed = linesSchema.safeParse(rawLines);
@@ -84,18 +114,27 @@ export function prepareDocument(
     return {
       ok: false,
       state: {
-        error: "Revisa las líneas: cada una necesita concepto, cantidad y precio.",
+        error:
+          "Revisa las líneas: cada una necesita concepto, cantidad y precio.",
         errors: { lines: Object.values(errors)[0] ?? "Líneas no válidas" },
+        values: snapshotValues(formData),
       },
     };
   }
 
   const usable = parsed.data.filter((line) => !isBlank(line));
   if (usable.length === 0) {
-    return { ok: false, state: { error: "El documento necesita al menos una línea con concepto." } };
+    return {
+      ok: false,
+      state: {
+        error: "El documento necesita al menos una línea con concepto.",
+        values: snapshotValues(formData),
+      },
+    };
   }
 
-  const globalDiscountRate = parseRateToBasisPoints(text(formData, "globalDiscountRate")) ?? 0;
+  const globalDiscountRate =
+    parseRateToBasisPoints(text(formData, "globalDiscountRate")) ?? 0;
 
   const lines: PreparedLine[] = usable.map((line, index) => {
     const amounts = computeLine(line);
@@ -120,7 +159,8 @@ export function prepareDocument(
     withholdingRate: options.withholdingRate,
   });
 
-  const emptyToNull = (value: string) => (value.trim() === "" ? null : value.trim());
+  const emptyToNull = (value: string) =>
+    value.trim() === "" ? null : value.trim();
 
   return {
     ok: true,
@@ -190,7 +230,11 @@ export function buildBillingSnapshot(
   company: BillingSnapshotCompany,
   customer: BillingSnapshotCustomer,
 ): string {
-  return JSON.stringify({ emitidoEn: new Date().toISOString(), company, customer });
+  return JSON.stringify({
+    emitidoEn: new Date().toISOString(),
+    company,
+    customer,
+  });
 }
 
 export interface BillingSnapshot {
@@ -199,25 +243,31 @@ export interface BillingSnapshot {
   customer?: Partial<BillingSnapshotCustomer>;
 }
 
-export function parseBillingSnapshot(json: string | null | undefined): BillingSnapshot | null {
+export function parseBillingSnapshot(
+  json: string | null | undefined,
+): BillingSnapshot | null {
   if (!json) return null;
   try {
     const parsed: unknown = JSON.parse(json);
-    return typeof parsed === "object" && parsed !== null ? (parsed as BillingSnapshot) : null;
+    return typeof parsed === "object" && parsed !== null
+      ? (parsed as BillingSnapshot)
+      : null;
   } catch {
     return null;
   }
 }
 
 /** Dirección de facturación en una línea, para la cabecera del documento. */
-export function formatAddressLine(address: {
-  line1: string;
-  line2: string | null;
-  postalCode: string | null;
-  city: string | null;
-  province: string | null;
-  countryCode: string;
-} | null): string | null {
+export function formatAddressLine(
+  address: {
+    line1: string;
+    line2: string | null;
+    postalCode: string | null;
+    city: string | null;
+    province: string | null;
+    countryCode: string;
+  } | null,
+): string | null {
   if (!address) return null;
   return [
     address.line1,

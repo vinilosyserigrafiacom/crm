@@ -40,9 +40,11 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Entorno local
+# Entorno local. La plantilla .env.example SÍ se versiona: es la referencia de
+# qué variables hacen falta, y sin ella una instalación nueva no arranca.
 .env
 .env*.local
+!.env.example
 
 # Base de datos SQLite local
 *.db

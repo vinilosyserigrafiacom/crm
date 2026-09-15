@@ -7,7 +7,14 @@ import { requireUser } from "@/lib/auth";
 import { recordAudit } from "@/lib/audit";
 import { parseAmountToCents } from "@/lib/money";
 import { itemSchema } from "@/lib/validation";
-import { bool, int, parseForm, text, type FormState } from "@/lib/form";
+import {
+  bool,
+  int,
+  parseForm,
+  text,
+  type FormState,
+  snapshotValues,
+} from "@/lib/form";
 
 /**
  * Crea o modifica un artículo del catálogo.
@@ -16,22 +23,29 @@ import { bool, int, parseForm, text, type FormState } from "@/lib/form";
  * presupuesto y de pedido guardan su propia copia de la descripción y del
  * precio. El catálogo solo sirve para escribir más rápido.
  */
-export async function saveItemAction(_prev: FormState, formData: FormData): Promise<FormState> {
+export async function saveItemAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
   const user = await requireUser();
   const itemId = text(formData, "itemId") || null;
 
-  const parsed = parseForm(itemSchema, {
-    sku: text(formData, "sku").toUpperCase(),
-    name: text(formData, "name"),
-    description: text(formData, "description"),
-    category: text(formData, "category"),
-    kind: text(formData, "kind") || "SERVICE",
-    unit: text(formData, "unit") || "ud",
-    unitPrice: parseAmountToCents(text(formData, "unitPrice")) ?? 0,
-    unitCost: parseAmountToCents(text(formData, "unitCost")) ?? 0,
-    vatRate: int(formData, "vatRate", 2100),
-    active: bool(formData, "active"),
-  });
+  const parsed = parseForm(
+    itemSchema,
+    {
+      sku: text(formData, "sku").toUpperCase(),
+      name: text(formData, "name"),
+      description: text(formData, "description"),
+      category: text(formData, "category"),
+      kind: text(formData, "kind") || "SERVICE",
+      unit: text(formData, "unit") || "ud",
+      unitPrice: parseAmountToCents(text(formData, "unitPrice")) ?? 0,
+      unitCost: parseAmountToCents(text(formData, "unitCost")) ?? 0,
+      vatRate: int(formData, "vatRate", 2100),
+      active: bool(formData, "active"),
+    },
+    formData,
+  );
   if (!parsed.ok) return parsed.state;
 
   try {
@@ -50,10 +64,14 @@ export async function saveItemAction(_prev: FormState, formData: FormData): Prom
       });
     });
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
       return {
         error: "Ya existe un artículo con esa referencia.",
         errors: { sku: "Referencia repetida" },
+        values: snapshotValues(formData),
       };
     }
     throw error;
@@ -69,7 +87,9 @@ export async function saveItemAction(_prev: FormState, formData: FormData): Prom
  * No se borra: puede estar referenciado desde líneas de documentos antiguos, y
  * desactivarlo ya lo saca del desplegable del editor.
  */
-export async function toggleItemActiveAction(formData: FormData): Promise<void> {
+export async function toggleItemActiveAction(
+  formData: FormData,
+): Promise<void> {
   const user = await requireUser();
   const itemId = text(formData, "itemId");
   if (!itemId) return;
@@ -81,7 +101,10 @@ export async function toggleItemActiveAction(formData: FormData): Promise<void> 
   if (!item) return;
 
   await prisma.$transaction(async (tx) => {
-    await tx.item.update({ where: { id: itemId }, data: { active: !item.active } });
+    await tx.item.update({
+      where: { id: itemId },
+      data: { active: !item.active },
+    });
     await recordAudit(tx, {
       userId: user.id,
       entity: "Item",

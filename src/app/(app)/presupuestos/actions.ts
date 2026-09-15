@@ -16,7 +16,7 @@ import {
   QUOTE_TRANSITIONS,
   type QuoteStatus,
 } from "@/lib/validation";
-import { text, type FormState } from "@/lib/form";
+import { snapshotValues, text, type FormState } from "@/lib/form";
 
 export async function createQuoteAction(
   _prev: FormState,
@@ -25,12 +25,20 @@ export async function createQuoteAction(
   const user = await requireUser();
 
   const customerId = text(formData, "customerId").trim();
-  const customer = customerId ? await loadCustomerForDocument(customerId) : null;
+  const customer = customerId
+    ? await loadCustomerForDocument(customerId)
+    : null;
   if (!customer) {
-    return { error: "Selecciona un cliente.", errors: { customerId: "Obligatorio" } };
+    return {
+      error: "Selecciona un cliente.",
+      errors: { customerId: "Obligatorio" },
+      values: snapshotValues(formData),
+    };
   }
 
-  const prepared = prepareDocument(formData, { withholdingRate: customer.withholdingRate });
+  const prepared = prepareDocument(formData, {
+    withholdingRate: customer.withholdingRate,
+  });
   if (!prepared.ok) return prepared.state;
   const doc = prepared.data;
 
@@ -94,12 +102,20 @@ export async function updateQuoteAction(
   }
 
   const customerId = text(formData, "customerId").trim();
-  const customer = customerId ? await loadCustomerForDocument(customerId) : null;
+  const customer = customerId
+    ? await loadCustomerForDocument(customerId)
+    : null;
   if (!customer) {
-    return { error: "Selecciona un cliente.", errors: { customerId: "Obligatorio" } };
+    return {
+      error: "Selecciona un cliente.",
+      errors: { customerId: "Obligatorio" },
+      values: snapshotValues(formData),
+    };
   }
 
-  const prepared = prepareDocument(formData, { withholdingRate: customer.withholdingRate });
+  const prepared = prepareDocument(formData, {
+    withholdingRate: customer.withholdingRate,
+  });
   if (!prepared.ok) return prepared.state;
   const doc = prepared.data;
 
@@ -156,7 +172,14 @@ export async function changeQuoteStatusAction(
 
   const quote = await prisma.quote.findUnique({
     where: { id: quoteId },
-    select: { id: true, status: true, number: true, series: true, year: true, customerId: true },
+    select: {
+      id: true,
+      status: true,
+      number: true,
+      series: true,
+      year: true,
+      customerId: true,
+    },
   });
   if (!quote) return;
 
@@ -164,18 +187,25 @@ export async function changeQuoteStatusAction(
   if (!allowed.includes(target)) return;
 
   const customer = await loadCustomerForDocument(quote.customerId);
-  const snapshot = quote.number || !customer ? null : await snapshotFor(customer);
+  const snapshot =
+    quote.number || !customer ? null : await snapshotFor(customer);
 
   await prisma.$transaction(async (tx) => {
     const data: Prisma.QuoteUpdateInput = { status: target };
 
     if (!quote.number && target !== "CANCELLED") {
-      const reserved = await reserveDocumentNumber(tx, "QUOTE", quote.series, quote.year);
+      const reserved = await reserveDocumentNumber(
+        tx,
+        "QUOTE",
+        quote.series,
+        quote.year,
+      );
       data.number = reserved.number;
       if (snapshot) data.billingSnapshot = snapshot;
     }
     if (target === "SENT") data.sentAt = new Date();
-    if (target === "ACCEPTED" || target === "REJECTED") data.decidedAt = new Date();
+    if (target === "ACCEPTED" || target === "REJECTED")
+      data.decidedAt = new Date();
 
     const updated = await tx.quote.update({ where: { id: quoteId }, data });
 
@@ -232,7 +262,9 @@ export async function deleteQuoteDraftAction(quoteId: string): Promise<void> {
  * partir de aquí puede cambiar (una cantidad, una fecha) sin que eso reescriba
  * lo que el cliente aceptó.
  */
-export async function convertQuoteToOrderAction(quoteId: string): Promise<void> {
+export async function convertQuoteToOrderAction(
+  quoteId: string,
+): Promise<void> {
   const user = await requireUser();
 
   const quote = await prisma.quote.findUnique({

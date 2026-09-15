@@ -4,7 +4,7 @@ import { useActionState } from "react";
 import { ErrorBanner, Field, SubmitButton } from "@/components/ui";
 import { VAT_RATES, VAT_RATE_LABELS } from "@/lib/money";
 import { USER_ROLE_LABELS, USER_ROLES } from "@/lib/validation";
-import type { FormState } from "@/lib/form";
+import { prefill, type FormState } from "@/lib/form";
 
 function Confirmation({ message }: { message?: string }) {
   if (!message) return null;
@@ -52,7 +52,8 @@ export function CompanyForm({
       <div className="card-header">
         <h2 className="card-title">Datos del emisor</h2>
         <p className="text-xs text-slate-500">
-          Es la cabecera de presupuestos y pedidos, y la base de las futuras facturas.
+          Es la cabecera de presupuestos y pedidos, y la base de las futuras
+          facturas.
         </p>
       </div>
 
@@ -61,12 +62,17 @@ export function CompanyForm({
         <Confirmation message={state.message} />
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Razón social" htmlFor="legalName" error={errors.legalName} required>
+          <Field
+            label="Razón social"
+            htmlFor="legalName"
+            error={errors.legalName}
+            required
+          >
             <input
               id="legalName"
               name="legalName"
               className={`input ${errors.legalName ? "input-error" : ""}`}
-              defaultValue={values.legalName}
+              defaultValue={prefill(state, "legalName", values.legalName)}
               required
             />
           </Field>
@@ -75,7 +81,7 @@ export function CompanyForm({
               id="tradeName"
               name="tradeName"
               className="input"
-              defaultValue={values.tradeName}
+              defaultValue={prefill(state, "tradeName", values.tradeName)}
             />
           </Field>
           <Field label="NIF / CIF" htmlFor="taxId">
@@ -83,15 +89,19 @@ export function CompanyForm({
               id="taxId"
               name="taxId"
               className="input font-mono uppercase"
-              defaultValue={values.taxId}
+              defaultValue={prefill(state, "taxId", values.taxId)}
             />
           </Field>
-          <Field label="IBAN" htmlFor="iban" hint="Se imprime al pie para pagos por transferencia.">
+          <Field
+            label="IBAN"
+            htmlFor="iban"
+            hint="Se imprime al pie para pagos por transferencia."
+          >
             <input
               id="iban"
               name="iban"
               className="input font-mono uppercase"
-              defaultValue={values.iban}
+              defaultValue={prefill(state, "iban", values.iban)}
               placeholder="ES00 0000 0000 0000 0000 0000"
             />
           </Field>
@@ -103,7 +113,7 @@ export function CompanyForm({
               id="addressLine1"
               name="addressLine1"
               className="input"
-              defaultValue={values.addressLine1}
+              defaultValue={prefill(state, "addressLine1", values.addressLine1)}
             />
           </Field>
           <Field label="Complemento" htmlFor="addressLine2">
@@ -111,7 +121,7 @@ export function CompanyForm({
               id="addressLine2"
               name="addressLine2"
               className="input"
-              defaultValue={values.addressLine2}
+              defaultValue={prefill(state, "addressLine2", values.addressLine2)}
             />
           </Field>
         </div>
@@ -122,21 +132,31 @@ export function CompanyForm({
               id="postalCode"
               name="postalCode"
               className="input"
-              defaultValue={values.postalCode}
+              defaultValue={prefill(state, "postalCode", values.postalCode)}
             />
           </Field>
           <Field label="Localidad" htmlFor="city">
-            <input id="city" name="city" className="input" defaultValue={values.city} />
+            <input
+              id="city"
+              name="city"
+              className="input"
+              defaultValue={prefill(state, "city", values.city)}
+            />
           </Field>
           <Field label="Provincia" htmlFor="province">
-            <input id="province" name="province" className="input" defaultValue={values.province} />
+            <input
+              id="province"
+              name="province"
+              className="input"
+              defaultValue={prefill(state, "province", values.province)}
+            />
           </Field>
           <Field label="País" htmlFor="countryCode" error={errors.countryCode}>
             <input
               id="countryCode"
               name="countryCode"
               className="input uppercase"
-              defaultValue={values.countryCode}
+              defaultValue={prefill(state, "countryCode", values.countryCode)}
               maxLength={2}
             />
           </Field>
@@ -144,13 +164,28 @@ export function CompanyForm({
 
         <div className="grid gap-4 sm:grid-cols-3">
           <Field label="Teléfono" htmlFor="phone">
-            <input id="phone" name="phone" className="input" defaultValue={values.phone} />
+            <input
+              id="phone"
+              name="phone"
+              className="input"
+              defaultValue={prefill(state, "phone", values.phone)}
+            />
           </Field>
           <Field label="Correo" htmlFor="email">
-            <input id="email" name="email" className="input" defaultValue={values.email} />
+            <input
+              id="email"
+              name="email"
+              className="input"
+              defaultValue={prefill(state, "email", values.email)}
+            />
           </Field>
           <Field label="Web" htmlFor="website">
-            <input id="website" name="website" className="input" defaultValue={values.website} />
+            <input
+              id="website"
+              name="website"
+              className="input"
+              defaultValue={prefill(state, "website", values.website)}
+            />
           </Field>
         </div>
 
@@ -160,7 +195,11 @@ export function CompanyForm({
               id="defaultVatRate"
               name="defaultVatRate"
               className="input"
-              defaultValue={values.defaultVatRate}
+              defaultValue={prefill(
+                state,
+                "defaultVatRate",
+                values.defaultVatRate,
+              )}
             >
               {VAT_RATES.map((rate) => (
                 <option key={rate} value={rate}>
@@ -181,7 +220,11 @@ export function CompanyForm({
               min={1}
               max={365}
               className={`input-number ${errors.quoteValidDays ? "input-error" : ""}`}
-              defaultValue={values.quoteValidDays}
+              defaultValue={prefill(
+                state,
+                "quoteValidDays",
+                values.quoteValidDays,
+              )}
             />
           </Field>
         </div>
@@ -196,7 +239,7 @@ export function CompanyForm({
             name="quoteTerms"
             rows={4}
             className="input"
-            defaultValue={values.quoteTerms}
+            defaultValue={prefill(state, "quoteTerms", values.quoteTerms)}
             placeholder="Forma de pago, plazos de entrega, validez de precios…"
           />
         </Field>
@@ -226,20 +269,32 @@ export function NewUserForm({
             id="user-name"
             name="name"
             className={`input ${errors.name ? "input-error" : ""}`}
+            defaultValue={prefill(state, "name")}
             required
           />
         </Field>
-        <Field label="Correo" htmlFor="user-email" error={errors.email} required>
+        <Field
+          label="Correo"
+          htmlFor="user-email"
+          error={errors.email}
+          required
+        >
           <input
             id="user-email"
             name="email"
             type="email"
             className={`input ${errors.email ? "input-error" : ""}`}
+            defaultValue={prefill(state, "email")}
             required
           />
         </Field>
         <Field label="Perfil" htmlFor="user-role">
-          <select id="user-role" name="role" className="input" defaultValue="STAFF">
+          <select
+            id="user-role"
+            name="role"
+            className="input"
+            defaultValue={prefill(state, "role", "STAFF")}
+          >
             {USER_ROLES.map((role) => (
               <option key={role} value={role}>
                 {USER_ROLE_LABELS[role]}
@@ -299,7 +354,12 @@ export function PasswordForm({
           required
         />
       </Field>
-      <Field label="Repetir contraseña" htmlFor="own-password-2" error={errors.passwordRepeat} required>
+      <Field
+        label="Repetir contraseña"
+        htmlFor="own-password-2"
+        error={errors.passwordRepeat}
+        required
+      >
         <input
           id="own-password-2"
           name="passwordRepeat"

@@ -5,6 +5,12 @@ Prisma sobre SQLite, Tailwind v4. Interfaz y código en castellano: nombres de
 ruta, textos y comentarios en castellano; identificadores de código en inglés,
 como en el resto del ecosistema.
 
+## Puesta en marcha
+
+`npm run setup` deja un clon listo para `npm run dev`. Es idempotente y está en
+`scripts/setup.mjs`; si cambias los pasos de instalación, actualízalo ahí y no
+solo en el README.
+
 ## Antes de dar algo por terminado
 
 ```bash
@@ -41,7 +47,14 @@ dentro de su transacción. La cadena de hashes se comprueba desde Ajustes.
 
 - Las mutaciones son **server actions** en `actions.ts` junto a cada módulo, no
   rutas de API. Los formularios usan `useActionState` y devuelven `FormState`
-  (`src/lib/form.ts`) con `error`, `errors` por campo y `message`.
+  (`src/lib/form.ts`) con `error`, `errors` por campo, `message` y `values`.
+- **Todo campo lleva `defaultValue={prefill(state, "nombre", valor)}`** (y
+  `prefillChecked` en las casillas). React 19 resetea el formulario en cuanto
+  termina la acción: sin esto, un error de validación borra lo tecleado en un
+  alta y revierte a lo guardado en una edición, sin avisar. Por el otro lado,
+  toda acción que devuelva un error tiene que arrastrar los valores: pasa el
+  `formData` a `parseForm(schema, input, formData)` y usa `snapshotValues` en
+  los errores que construyas a mano. Las contraseñas nunca se devuelven.
 - La validación es Zod en `src/lib/validation.ts`. SQLite no soporta enums de
   Prisma, así que los estados se guardan como texto y ese fichero es la única
   fuente de verdad de los valores y de las transiciones permitidas.

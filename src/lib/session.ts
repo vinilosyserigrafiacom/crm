@@ -1,4 +1,9 @@
-import { SignJWT, jwtVerify } from "jose";
+// Se importan las rutas concretas y no el barril "jose": el índice arrastra el
+// código de JWE, que usa CompressionStream y no existe en el runtime edge donde
+// corre el middleware. Aquí solo se firman y verifican JWS, así que ese código
+// nunca llegaría a ejecutarse, pero el build avisa en cada compilación.
+import { SignJWT } from "jose/jwt/sign";
+import { jwtVerify } from "jose/jwt/verify";
 
 /**
  * Sesión en cookie firmada.

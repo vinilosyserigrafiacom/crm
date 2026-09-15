@@ -11,8 +11,12 @@ import { loadCustomerForDocument, snapshotFor } from "@/lib/document-server";
 import { prepareDocument, totalsData } from "@/lib/documents";
 import { formatCents } from "@/lib/money";
 import { fromDateInput } from "@/lib/format";
-import { ORDER_STATUS_LABELS, ORDER_TRANSITIONS, type OrderStatus } from "@/lib/validation";
-import { text, type FormState } from "@/lib/form";
+import {
+  ORDER_STATUS_LABELS,
+  ORDER_TRANSITIONS,
+  type OrderStatus,
+} from "@/lib/validation";
+import { snapshotValues, text, type FormState } from "@/lib/form";
 
 export async function createOrderAction(
   _prev: FormState,
@@ -21,12 +25,20 @@ export async function createOrderAction(
   const user = await requireUser();
 
   const customerId = text(formData, "customerId").trim();
-  const customer = customerId ? await loadCustomerForDocument(customerId) : null;
+  const customer = customerId
+    ? await loadCustomerForDocument(customerId)
+    : null;
   if (!customer) {
-    return { error: "Selecciona un cliente.", errors: { customerId: "Obligatorio" } };
+    return {
+      error: "Selecciona un cliente.",
+      errors: { customerId: "Obligatorio" },
+      values: snapshotValues(formData),
+    };
   }
 
-  const prepared = prepareDocument(formData, { withholdingRate: customer.withholdingRate });
+  const prepared = prepareDocument(formData, {
+    withholdingRate: customer.withholdingRate,
+  });
   if (!prepared.ok) return prepared.state;
   const doc = prepared.data;
 
@@ -87,12 +99,20 @@ export async function updateOrderAction(
   }
 
   const customerId = text(formData, "customerId").trim();
-  const customer = customerId ? await loadCustomerForDocument(customerId) : null;
+  const customer = customerId
+    ? await loadCustomerForDocument(customerId)
+    : null;
   if (!customer) {
-    return { error: "Selecciona un cliente.", errors: { customerId: "Obligatorio" } };
+    return {
+      error: "Selecciona un cliente.",
+      errors: { customerId: "Obligatorio" },
+      values: snapshotValues(formData),
+    };
   }
 
-  const prepared = prepareDocument(formData, { withholdingRate: customer.withholdingRate });
+  const prepared = prepareDocument(formData, {
+    withholdingRate: customer.withholdingRate,
+  });
   if (!prepared.ok) return prepared.state;
   const doc = prepared.data;
 
@@ -145,7 +165,13 @@ export async function changeOrderStatusAction(
 
   const order = await prisma.order.findUnique({
     where: { id: orderId },
-    select: { status: true, number: true, series: true, year: true, customerId: true },
+    select: {
+      status: true,
+      number: true,
+      series: true,
+      year: true,
+      customerId: true,
+    },
   });
   if (!order) return;
 
@@ -153,13 +179,19 @@ export async function changeOrderStatusAction(
   if (!allowed.includes(target)) return;
 
   const customer = await loadCustomerForDocument(order.customerId);
-  const snapshot = order.number || !customer ? null : await snapshotFor(customer);
+  const snapshot =
+    order.number || !customer ? null : await snapshotFor(customer);
 
   await prisma.$transaction(async (tx) => {
     const data: Prisma.OrderUpdateInput = { status: target };
 
     if (!order.number && target !== "CANCELLED") {
-      const reserved = await reserveDocumentNumber(tx, "ORDER", order.series, order.year);
+      const reserved = await reserveDocumentNumber(
+        tx,
+        "ORDER",
+        order.series,
+        order.year,
+      );
       data.number = reserved.number;
       if (snapshot) data.billingSnapshot = snapshot;
     }

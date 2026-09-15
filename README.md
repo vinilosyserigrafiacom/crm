@@ -27,47 +27,43 @@ todos los datos se quedan en un fichero o en una base de datos que controlas tú
 
 ## Puesta en marcha
 
-Requisitos: Node.js 22 o superior.
+Requisitos: [Node.js](https://nodejs.org) 20 o superior (recomendado 22) y Git.
 
 ```bash
-npm install
-cp .env.example .env
+git clone https://github.com/vinilosyserigrafiacom/crm.git
+cd crm
+npm run setup
+npm run dev
 ```
 
-Edita `.env` y genera una clave de sesión de verdad:
+`npm run setup` instala las dependencias, crea el `.env` con una clave de
+sesión generada al azar, aplica las migraciones y carga el catálogo y los datos
+de ejemplo. Al terminar imprime el usuario y la contraseña de acceso:
 
-```bash
-openssl rand -base64 48
+```
+Usuario:    admin@vinilosyserigrafia.com
+Contraseña: fXjoAQMmOXt5
 ```
 
-Prepara la base de datos y crea la cuenta inicial:
+**Anota esa contraseña: no se vuelve a mostrar.** Puedes fijarla tú de antemano
+con `SEED_ADMIN_PASSWORD` (mínimo 10 caracteres) y el correo con
+`SEED_ADMIN_EMAIL`.
 
-```bash
-npm run db:deploy   # aplica las migraciones
-npm run db:seed     # crea el usuario, el catálogo y datos de ejemplo
-```
+El comando se puede repetir sin miedo: no pisa un `.env` que ya exista ni
+vuelve a sembrar una base de datos que ya tenga usuarios.
 
-La semilla imprime en pantalla el usuario y la contraseña generada. Anótala:
-no se vuelve a mostrar. Puedes fijarla tú con `SEED_ADMIN_PASSWORD=...` y el
-correo con `SEED_ADMIN_EMAIL=...`.
+Con `npm run dev` la aplicación queda en http://localhost:3000.
 
-Para desarrollo:
-
-```bash
-npm run dev         # http://localhost:3000
-```
-
-Para producción:
-
-```bash
-npm run build
-npm start
-```
+Nada más entrar, en **Ajustes**: cambia la contraseña y rellena los datos del
+taller (CIF, dirección, IBAN), que son los que salen en la cabecera de los
+presupuestos. Los cuatro clientes de ejemplo son inventados; bórralos cuando
+hayas visto cómo funciona.
 
 ## Comandos
 
 | Comando | Qué hace |
 | --- | --- |
+| `npm run setup` | Instalación completa desde cero (idempotente) |
 | `npm run dev` | Servidor de desarrollo con recarga en caliente |
 | `npm run build` / `npm start` | Compilar y servir en producción |
 | `npm run check` | Tipos, linter y pruebas de una tacada |
@@ -75,16 +71,17 @@ npm start
 | `npm run db:migrate` | Crear una migración nueva tras tocar el esquema |
 | `npm run db:deploy` | Aplicar migraciones en producción |
 | `npm run db:seed` | Datos iniciales (no hace nada si ya hay usuarios) |
+| `npm run db:reset` | Vaciar la base de datos y volver a sembrarla |
 | `npm run db:studio` | Explorador visual de la base de datos |
 
 ## Despliegue autoalojado
 
 La aplicación es un servidor Node normal. Con SQLite no hace falta nada más:
 
-1. Clona el repositorio en el servidor y ejecuta `npm ci`.
-2. Copia `.env` con `DATABASE_URL`, `SESSION_SECRET` y `APP_URL` apuntando a tu
-   dominio con **https**. Sin https la cookie de sesión viaja en claro.
-3. `npm run build && npm run db:deploy`.
+1. Clona el repositorio en el servidor y ejecuta `npm run setup`.
+2. Edita el `.env` que ha creado: `APP_URL` con tu dominio y **https**. Sin
+   https la cookie de sesión viaja en claro.
+3. `npm run build`.
 4. Arranca con un gestor de procesos (systemd, pm2…) y pon delante un proxy
    inverso (nginx, Caddy) que termine el TLS.
 5. Copia de seguridad: con SQLite basta con copiar el fichero de la base de
@@ -165,6 +162,8 @@ trazabilidad) ya está construida y probada.
 prisma/
   schema.prisma        Modelo de datos, con las convenciones documentadas
   seed.ts              Datos iniciales
+scripts/
+  setup.mjs            Instalación en un solo comando
 src/
   app/
     (app)/             Páginas con sesión: resumen, clientes, presupuestos…

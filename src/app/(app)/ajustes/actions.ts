@@ -7,7 +7,13 @@ import { prisma } from "@/lib/prisma";
 import { hashPassword, requireRole, requireUser } from "@/lib/auth";
 import { recordAudit } from "@/lib/audit";
 import { companySettingsSchema, USER_ROLES } from "@/lib/validation";
-import { int, parseForm, text, type FormState } from "@/lib/form";
+import {
+  int,
+  parseForm,
+  text,
+  type FormState,
+  snapshotValues,
+} from "@/lib/form";
 
 export async function saveCompanySettingsAction(
   _prev: FormState,
@@ -15,24 +21,28 @@ export async function saveCompanySettingsAction(
 ): Promise<FormState> {
   const user = await requireRole("OWNER", "ADMIN");
 
-  const parsed = parseForm(companySettingsSchema, {
-    legalName: text(formData, "legalName"),
-    tradeName: text(formData, "tradeName"),
-    taxId: text(formData, "taxId"),
-    addressLine1: text(formData, "addressLine1"),
-    addressLine2: text(formData, "addressLine2"),
-    postalCode: text(formData, "postalCode"),
-    city: text(formData, "city"),
-    province: text(formData, "province"),
-    countryCode: text(formData, "countryCode") || "ES",
-    phone: text(formData, "phone"),
-    email: text(formData, "email"),
-    website: text(formData, "website"),
-    iban: text(formData, "iban").replace(/\s/g, "").toUpperCase(),
-    defaultVatRate: int(formData, "defaultVatRate", 2100),
-    quoteValidDays: int(formData, "quoteValidDays", 30),
-    quoteTerms: text(formData, "quoteTerms"),
-  });
+  const parsed = parseForm(
+    companySettingsSchema,
+    {
+      legalName: text(formData, "legalName"),
+      tradeName: text(formData, "tradeName"),
+      taxId: text(formData, "taxId"),
+      addressLine1: text(formData, "addressLine1"),
+      addressLine2: text(formData, "addressLine2"),
+      postalCode: text(formData, "postalCode"),
+      city: text(formData, "city"),
+      province: text(formData, "province"),
+      countryCode: text(formData, "countryCode") || "ES",
+      phone: text(formData, "phone"),
+      email: text(formData, "email"),
+      website: text(formData, "website"),
+      iban: text(formData, "iban").replace(/\s/g, "").toUpperCase(),
+      defaultVatRate: int(formData, "defaultVatRate", 2100),
+      quoteValidDays: int(formData, "quoteValidDays", 30),
+      quoteTerms: text(formData, "quoteTerms"),
+    },
+    formData,
+  );
   if (!parsed.ok) return parsed.state;
 
   await prisma.$transaction(async (tx) => {
@@ -60,7 +70,9 @@ const newUserSchema = z.object({
   role: z.enum(USER_ROLES),
   // 10 caracteres como mínimo: con bcrypt y sin límite de intentos, la longitud
   // es lo que de verdad protege la cuenta.
-  password: z.string().min(10, "La contraseña debe tener al menos 10 caracteres"),
+  password: z
+    .string()
+    .min(10, "La contraseña debe tener al menos 10 caracteres"),
 });
 
 export async function createUserAction(
@@ -69,12 +81,16 @@ export async function createUserAction(
 ): Promise<FormState> {
   const user = await requireRole("OWNER", "ADMIN");
 
-  const parsed = parseForm(newUserSchema, {
-    name: text(formData, "name"),
-    email: text(formData, "email"),
-    role: text(formData, "role") || "STAFF",
-    password: text(formData, "password"),
-  });
+  const parsed = parseForm(
+    newUserSchema,
+    {
+      name: text(formData, "name"),
+      email: text(formData, "email"),
+      role: text(formData, "role") || "STAFF",
+      password: text(formData, "password"),
+    },
+    formData,
+  );
   if (!parsed.ok) return parsed.state;
 
   try {
@@ -94,8 +110,15 @@ export async function createUserAction(
       summary: `Alta de usuario ${created.email} (${created.role})`,
     });
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      return { error: "Ya hay una cuenta con ese correo.", errors: { email: "Correo repetido" } };
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      return {
+        error: "Ya hay una cuenta con ese correo.",
+        errors: { email: "Correo repetido" },
+        values: snapshotValues(formData),
+      };
     }
     throw error;
   }
@@ -110,7 +133,9 @@ export async function createUserAction(
  * No se permite desactivarse a uno mismo: dejaría el taller sin nadie dentro si
  * es la única cuenta de administración.
  */
-export async function toggleUserActiveAction(formData: FormData): Promise<void> {
+export async function toggleUserActiveAction(
+  formData: FormData,
+): Promise<void> {
   const current = await requireRole("OWNER", "ADMIN");
   const userId = text(formData, "userId");
   if (!userId || userId === current.id) return;
@@ -122,7 +147,10 @@ export async function toggleUserActiveAction(formData: FormData): Promise<void> 
   if (!target) return;
 
   await prisma.$transaction(async (tx) => {
-    await tx.user.update({ where: { id: userId }, data: { active: !target.active } });
+    await tx.user.update({
+      where: { id: userId },
+      data: { active: !target.active },
+    });
     await recordAudit(tx, {
       userId: current.id,
       entity: "User",
@@ -146,10 +174,16 @@ export async function changeOwnPasswordAction(
   const repeat = text(formData, "passwordRepeat");
 
   if (password.length < 10) {
-    return { errors: { password: "Debe tener al menos 10 caracteres" }, error: "Revisa la contraseña." };
+    return {
+      errors: { password: "Debe tener al menos 10 caracteres" },
+      error: "Revisa la contraseña.",
+    };
   }
   if (password !== repeat) {
-    return { errors: { passwordRepeat: "Las dos contraseñas no coinciden" }, error: "Revisa la contraseña." };
+    return {
+      errors: { passwordRepeat: "Las dos contraseñas no coinciden" },
+      error: "Revisa la contraseña.",
+    };
   }
 
   await prisma.user.update({

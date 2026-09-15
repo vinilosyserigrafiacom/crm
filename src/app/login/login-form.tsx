@@ -5,7 +5,10 @@ import { signInAction, type LoginState } from "./actions";
 import { ErrorBanner, Field, SubmitButton } from "@/components/ui";
 
 export function LoginForm({ next }: { next: string }) {
-  const [state, formAction] = useActionState<LoginState, FormData>(signInAction, {});
+  const [state, formAction] = useActionState<LoginState, FormData>(
+    signInAction,
+    {},
+  );
 
   return (
     <form action={formAction} className="space-y-4">
@@ -23,6 +26,10 @@ export function LoginForm({ next }: { next: string }) {
           autoFocus
           className="input"
           placeholder="tu@vinilosyserigrafia.com"
+          // React resetea el formulario al terminar la acción, así que tras una
+          // contraseña fallida el correo volvería a quedar vacío. Se repinta con
+          // lo que se escribió para no tener que teclearlo otra vez.
+          defaultValue={state.email ?? ""}
         />
       </Field>
 

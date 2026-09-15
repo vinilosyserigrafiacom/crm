@@ -31,7 +31,8 @@ function readCustomerForm(formData: FormData) {
     defaultVatRate: int(formData, "defaultVatRate", 2100),
     vatExempt: bool(formData, "vatExempt"),
     vatExemptReason: text(formData, "vatExemptReason"),
-    withholdingRate: parseRateToBasisPoints(text(formData, "withholdingRate")) ?? 0,
+    withholdingRate:
+      parseRateToBasisPoints(text(formData, "withholdingRate")) ?? 0,
     notes: text(formData, "notes"),
     tags: text(formData, "tags"),
     active: bool(formData, "active"),
@@ -44,7 +45,11 @@ export async function createCustomerAction(
 ): Promise<FormState> {
   const user = await requireUser();
 
-  const parsed = parseForm(customerSchema, readCustomerForm(formData));
+  const parsed = parseForm(
+    customerSchema,
+    readCustomerForm(formData),
+    formData,
+  );
   if (!parsed.ok) return parsed.state;
 
   let customerId: string;
@@ -67,8 +72,13 @@ export async function createCustomerAction(
       return customer.id;
     });
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      return { error: "Ya existe un cliente con ese código. Vuelve a intentarlo." };
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      return {
+        error: "Ya existe un cliente con ese código. Vuelve a intentarlo.",
+      };
     }
     throw error;
   }
@@ -84,10 +94,16 @@ export async function updateCustomerAction(
 ): Promise<FormState> {
   const user = await requireUser();
 
-  const parsed = parseForm(customerSchema, readCustomerForm(formData));
+  const parsed = parseForm(
+    customerSchema,
+    readCustomerForm(formData),
+    formData,
+  );
   if (!parsed.ok) return parsed.state;
 
-  const before = await prisma.customer.findUnique({ where: { id: customerId } });
+  const before = await prisma.customer.findUnique({
+    where: { id: customerId },
+  });
   if (!before) return { error: "El cliente ya no existe." };
 
   await prisma.$transaction(async (tx) => {
@@ -99,7 +115,9 @@ export async function updateCustomerAction(
     // Solo se registran los campos que han cambiado: un histórico con el
     // registro completo en cada guardado es ilegible cuando hace falta.
     const changes: Record<string, { antes: unknown; despues: unknown }> = {};
-    for (const key of Object.keys(parsed.data) as (keyof typeof parsed.data)[]) {
+    for (const key of Object.keys(
+      parsed.data,
+    ) as (keyof typeof parsed.data)[]) {
       if (before[key] !== after[key]) {
         changes[key] = { antes: before[key], despues: after[key] };
       }
@@ -127,7 +145,9 @@ export async function updateCustomerAction(
  * contable, y borrarlo dejaría documentos huérfanos. Archivarlo lo saca de los
  * listados y de los desplegables sin tocar su historial.
  */
-export async function toggleCustomerActiveAction(customerId: string): Promise<void> {
+export async function toggleCustomerActiveAction(
+  customerId: string,
+): Promise<void> {
   const user = await requireUser();
 
   const customer = await prisma.customer.findUnique({
@@ -171,14 +191,18 @@ export async function saveContactAction(
   const user = await requireUser();
   const contactId = text(formData, "contactId") || null;
 
-  const parsed = parseForm(contactSchema, {
-    name: text(formData, "name"),
-    jobTitle: text(formData, "jobTitle"),
-    email: text(formData, "email"),
-    phone: text(formData, "phone"),
-    notes: text(formData, "notes"),
-    isPrimary: bool(formData, "isPrimary"),
-  });
+  const parsed = parseForm(
+    contactSchema,
+    {
+      name: text(formData, "name"),
+      jobTitle: text(formData, "jobTitle"),
+      email: text(formData, "email"),
+      phone: text(formData, "phone"),
+      notes: text(formData, "notes"),
+      isPrimary: bool(formData, "isPrimary"),
+    },
+    formData,
+  );
   if (!parsed.ok) return parsed.state;
 
   await prisma.$transaction(async (tx) => {
@@ -220,7 +244,9 @@ export async function deleteContactAction(
   if (!contactId) return;
 
   await prisma.$transaction(async (tx) => {
-    const contact = await tx.contact.delete({ where: { id: contactId, customerId } });
+    const contact = await tx.contact.delete({
+      where: { id: contactId, customerId },
+    });
     await recordAudit(tx, {
       userId: user.id,
       entity: "Contact",
@@ -246,17 +272,21 @@ export async function saveAddressAction(
   const user = await requireUser();
   const addressId = text(formData, "addressId") || null;
 
-  const parsed = parseForm(addressSchema, {
-    kind: text(formData, "kind"),
-    label: text(formData, "label"),
-    line1: text(formData, "line1"),
-    line2: text(formData, "line2"),
-    postalCode: text(formData, "postalCode"),
-    city: text(formData, "city"),
-    province: text(formData, "province"),
-    countryCode: text(formData, "countryCode") || "ES",
-    isDefault: bool(formData, "isDefault"),
-  });
+  const parsed = parseForm(
+    addressSchema,
+    {
+      kind: text(formData, "kind"),
+      label: text(formData, "label"),
+      line1: text(formData, "line1"),
+      line2: text(formData, "line2"),
+      postalCode: text(formData, "postalCode"),
+      city: text(formData, "city"),
+      province: text(formData, "province"),
+      countryCode: text(formData, "countryCode") || "ES",
+      isDefault: bool(formData, "isDefault"),
+    },
+    formData,
+  );
   if (!parsed.ok) return parsed.state;
 
   await prisma.$transaction(async (tx) => {
@@ -287,7 +317,9 @@ export async function saveAddressAction(
   });
 
   revalidatePath(`/clientes/${customerId}`);
-  return { message: addressId ? "Dirección actualizada." : "Dirección añadida." };
+  return {
+    message: addressId ? "Dirección actualizada." : "Dirección añadida.",
+  };
 }
 
 export async function deleteAddressAction(
@@ -299,7 +331,9 @@ export async function deleteAddressAction(
   if (!addressId) return;
 
   await prisma.$transaction(async (tx) => {
-    const address = await tx.address.delete({ where: { id: addressId, customerId } });
+    const address = await tx.address.delete({
+      where: { id: addressId, customerId },
+    });
     await recordAudit(tx, {
       userId: user.id,
       entity: "Address",

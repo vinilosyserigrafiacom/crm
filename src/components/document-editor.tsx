@@ -13,7 +13,7 @@ import {
   parseQuantity,
   parseRateToBasisPoints,
 } from "@/lib/money";
-import type { FormState } from "@/lib/form";
+import { prefill, type FormState } from "@/lib/form";
 
 /*
  * Editor de líneas compartido por presupuestos y pedidos.
@@ -97,7 +97,10 @@ function toEditorLine(values: EditorLineValues): EditorLine {
     key: nextKey(),
     quantityInput: String(values.quantity).replace(".", ","),
     unitPriceInput: centsToInput(values.unitPrice),
-    discountInput: values.discountRate === 0 ? "" : formatRate(values.discountRate).replace("%", ""),
+    discountInput:
+      values.discountRate === 0
+        ? ""
+        : formatRate(values.discountRate).replace("%", ""),
   };
 }
 
@@ -150,10 +153,14 @@ export function DocumentEditor({
 
   const [customerId, setCustomerId] = useState(values.customerId);
   const [globalDiscount, setGlobalDiscount] = useState(
-    values.globalDiscountRate === 0 ? "" : formatRate(values.globalDiscountRate).replace("%", ""),
+    values.globalDiscountRate === 0
+      ? ""
+      : formatRate(values.globalDiscountRate).replace("%", ""),
   );
   const [lines, setLines] = useState<EditorLine[]>(() =>
-    values.lines.length > 0 ? values.lines.map(toEditorLine) : [emptyLine(2100)],
+    values.lines.length > 0
+      ? values.lines.map(toEditorLine)
+      : [emptyLine(2100)],
   );
 
   const customer = customers.find((c) => c.id === customerId) ?? null;
@@ -169,7 +176,9 @@ export function DocumentEditor({
   );
 
   const updateLine = (key: string, patch: Partial<EditorLine>) => {
-    setLines((current) => current.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+    setLines((current) =>
+      current.map((l) => (l.key === key ? { ...l, ...patch } : l)),
+    );
   };
 
   const removeLine = (key: string) => {
@@ -177,7 +186,9 @@ export function DocumentEditor({
       const next = current.filter((l) => l.key !== key);
       // Nunca se queda sin líneas: un documento vacío no se puede guardar y es
       // más cómodo tener siempre una fila lista para escribir.
-      return next.length > 0 ? next : [emptyLine(customer?.defaultVatRate ?? 2100)];
+      return next.length > 0
+        ? next
+        : [emptyLine(customer?.defaultVatRate ?? 2100)];
     });
   };
 
@@ -191,7 +202,9 @@ export function DocumentEditor({
     updateLine(key, {
       itemId: item.id,
       sku: item.sku,
-      description: item.description ? `${item.name} — ${item.description}` : item.name,
+      description: item.description
+        ? `${item.name} — ${item.description}`
+        : item.name,
       unit: item.unit,
       unitPriceInput: centsToInput(item.unitPrice),
       vatRate: customer?.vatExempt ? 0 : item.vatRate,
@@ -225,12 +238,18 @@ export function DocumentEditor({
           <h2 className="card-title">Datos del documento</h2>
           {numberHint && (
             <p className="text-xs text-slate-500">
-              Al emitirlo se numerará como <span className="font-mono">{numberHint}</span>
+              Al emitirlo se numerará como{" "}
+              <span className="font-mono">{numberHint}</span>
             </p>
           )}
         </div>
         <div className="card-body grid gap-4 sm:grid-cols-2">
-          <Field label="Cliente" htmlFor="customerId" error={errors.customerId} required>
+          <Field
+            label="Cliente"
+            htmlFor="customerId"
+            error={errors.customerId}
+            required
+          >
             <select
               id="customerId"
               name="customerId"
@@ -257,7 +276,7 @@ export function DocumentEditor({
               id="title"
               name="title"
               className="input"
-              defaultValue={values.title ?? ""}
+              defaultValue={prefill(state, "title", values.title ?? "")}
               placeholder="Rotulación furgoneta · vinilo impreso"
               maxLength={200}
             />
@@ -274,7 +293,7 @@ export function DocumentEditor({
               name="primaryDate"
               type="date"
               className="input"
-              defaultValue={values.primaryDate}
+              defaultValue={prefill(state, "primaryDate", values.primaryDate)}
               required
             />
           </Field>
@@ -282,14 +301,22 @@ export function DocumentEditor({
           <Field
             label={isQuote ? "Válido hasta" : "Entrega comprometida"}
             htmlFor="secondaryDate"
-            hint={isQuote ? "Se rellena con la validez por defecto." : "Aparece en el taller."}
+            hint={
+              isQuote
+                ? "Se rellena con la validez por defecto."
+                : "Aparece en el taller."
+            }
           >
             <input
               id="secondaryDate"
               name="secondaryDate"
               type="date"
               className="input"
-              defaultValue={values.secondaryDate}
+              defaultValue={prefill(
+                state,
+                "secondaryDate",
+                values.secondaryDate,
+              )}
             />
           </Field>
 
@@ -298,15 +325,19 @@ export function DocumentEditor({
               id="customerRef"
               name="customerRef"
               className="input"
-              defaultValue={values.customerRef ?? ""}
+              defaultValue={prefill(
+                state,
+                "customerRef",
+                values.customerRef ?? "",
+              )}
               placeholder="Su nº de pedido"
             />
           </Field>
 
           {customer?.vatExempt && (
             <p className="self-end rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-amber-200 ring-inset">
-              Este cliente está marcado como exento de IVA. Pon el tipo al 0% en las líneas que
-              correspondan.
+              Este cliente está marcado como exento de IVA. Pon el tipo al 0% en
+              las líneas que correspondan.
             </p>
           )}
         </div>
@@ -319,7 +350,10 @@ export function DocumentEditor({
             type="button"
             className="btn-secondary btn-sm"
             onClick={() =>
-              setLines((current) => [...current, emptyLine(customer?.defaultVatRate ?? 2100)])
+              setLines((current) => [
+                ...current,
+                emptyLine(customer?.defaultVatRate ?? 2100),
+              ])
             }
           >
             Añadir línea
@@ -344,7 +378,8 @@ export function DocumentEditor({
               {lines.map((line, index) => {
                 const numbers = lineNumbers(line);
                 const gross = Math.round(numbers.quantity * numbers.unitPrice);
-                const net = gross - Math.round((gross * numbers.discountRate) / 10_000);
+                const net =
+                  gross - Math.round((gross * numbers.discountRate) / 10_000);
 
                 return (
                   <tr key={line.key}>
@@ -353,7 +388,9 @@ export function DocumentEditor({
                         rows={2}
                         className="input"
                         value={line.description}
-                        onChange={(e) => updateLine(line.key, { description: e.target.value })}
+                        onChange={(e) =>
+                          updateLine(line.key, { description: e.target.value })
+                        }
                         placeholder="Descripción del trabajo o material"
                         aria-label={`Concepto de la línea ${index + 1}`}
                       />
@@ -377,7 +414,9 @@ export function DocumentEditor({
                       <input
                         className="input"
                         value={line.unit}
-                        onChange={(e) => updateLine(line.key, { unit: e.target.value })}
+                        onChange={(e) =>
+                          updateLine(line.key, { unit: e.target.value })
+                        }
                         aria-label={`Unidad de la línea ${index + 1}`}
                         maxLength={16}
                       />
@@ -386,7 +425,11 @@ export function DocumentEditor({
                       <input
                         className="input-number"
                         value={line.quantityInput}
-                        onChange={(e) => updateLine(line.key, { quantityInput: e.target.value })}
+                        onChange={(e) =>
+                          updateLine(line.key, {
+                            quantityInput: e.target.value,
+                          })
+                        }
                         inputMode="decimal"
                         aria-label={`Cantidad de la línea ${index + 1}`}
                       />
@@ -395,7 +438,11 @@ export function DocumentEditor({
                       <input
                         className="input-number"
                         value={line.unitPriceInput}
-                        onChange={(e) => updateLine(line.key, { unitPriceInput: e.target.value })}
+                        onChange={(e) =>
+                          updateLine(line.key, {
+                            unitPriceInput: e.target.value,
+                          })
+                        }
                         inputMode="decimal"
                         aria-label={`Precio de la línea ${index + 1}`}
                       />
@@ -404,7 +451,11 @@ export function DocumentEditor({
                       <input
                         className="input-number"
                         value={line.discountInput}
-                        onChange={(e) => updateLine(line.key, { discountInput: e.target.value })}
+                        onChange={(e) =>
+                          updateLine(line.key, {
+                            discountInput: e.target.value,
+                          })
+                        }
                         inputMode="decimal"
                         placeholder="0"
                         aria-label={`Descuento de la línea ${index + 1}`}
@@ -414,7 +465,11 @@ export function DocumentEditor({
                       <select
                         className="input"
                         value={line.vatRate}
-                        onChange={(e) => updateLine(line.key, { vatRate: Number(e.target.value) })}
+                        onChange={(e) =>
+                          updateLine(line.key, {
+                            vatRate: Number(e.target.value),
+                          })
+                        }
                         aria-label={`IVA de la línea ${index + 1}`}
                       >
                         {VAT_RATES.map((rate) => (
@@ -466,7 +521,9 @@ export function DocumentEditor({
               <>
                 <div className="flex justify-between gap-4">
                   <dt className="text-slate-600">Suma de líneas</dt>
-                  <dd className="tabular-nums">{formatCents(totals.linesSubtotal)}</dd>
+                  <dd className="tabular-nums">
+                    {formatCents(totals.linesSubtotal)}
+                  </dd>
                 </div>
                 <div className="flex justify-between gap-4">
                   <dt className="text-slate-600">Descuento global</dt>
@@ -478,7 +535,9 @@ export function DocumentEditor({
             )}
             <div className="flex justify-between gap-4">
               <dt className="text-slate-600">Base imponible</dt>
-              <dd className="tabular-nums">{formatCents(totals.taxableBase)}</dd>
+              <dd className="tabular-nums">
+                {formatCents(totals.taxableBase)}
+              </dd>
             </div>
             {totals.vatBreakdown
               .filter((entry) => entry.base !== 0)
@@ -523,18 +582,22 @@ export function DocumentEditor({
               name="notes"
               rows={3}
               className="input"
-              defaultValue={values.notes ?? ""}
+              defaultValue={prefill(state, "notes", values.notes ?? "")}
             />
           </Field>
 
           {isQuote && (
-            <Field label="Condiciones" htmlFor="terms" hint="Plazos, forma de pago, validez…">
+            <Field
+              label="Condiciones"
+              htmlFor="terms"
+              hint="Plazos, forma de pago, validez…"
+            >
               <textarea
                 id="terms"
                 name="terms"
                 rows={3}
                 className="input"
-                defaultValue={values.terms ?? ""}
+                defaultValue={prefill(state, "terms", values.terms ?? "")}
               />
             </Field>
           )}
@@ -549,7 +612,11 @@ export function DocumentEditor({
               name="internalNotes"
               rows={3}
               className="input"
-              defaultValue={values.internalNotes ?? ""}
+              defaultValue={prefill(
+                state,
+                "internalNotes",
+                values.internalNotes ?? "",
+              )}
             />
           </Field>
         </div>

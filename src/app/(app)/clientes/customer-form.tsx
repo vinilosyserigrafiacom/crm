@@ -5,8 +5,12 @@ import { useActionState, useState } from "react";
 import { ErrorBanner, Field, SubmitButton } from "@/components/ui";
 import { taxIdWarning } from "@/lib/tax-id";
 import { VAT_RATES, VAT_RATE_LABELS, formatRate } from "@/lib/money";
-import { CUSTOMER_KIND_LABELS, CUSTOMER_KINDS, TAX_ID_TYPES } from "@/lib/validation";
-import type { FormState } from "@/lib/form";
+import {
+  CUSTOMER_KIND_LABELS,
+  CUSTOMER_KINDS,
+  TAX_ID_TYPES,
+} from "@/lib/validation";
+import { prefill, prefillChecked, type FormState } from "@/lib/form";
 
 /** Valores iniciales del formulario; en el alta se usan los de por defecto. */
 export interface CustomerFormValues {
@@ -116,7 +120,7 @@ export function CustomerForm({
               id="legalName"
               name="legalName"
               className={`input ${errors.legalName ? "input-error" : ""}`}
-              defaultValue={values.legalName}
+              defaultValue={prefill(state, "legalName", values.legalName)}
               required
               maxLength={200}
             />
@@ -131,7 +135,7 @@ export function CustomerForm({
               id="tradeName"
               name="tradeName"
               className="input"
-              defaultValue={values.tradeName ?? ""}
+              defaultValue={prefill(state, "tradeName", values.tradeName ?? "")}
             />
           </Field>
 
@@ -159,7 +163,7 @@ export function CustomerForm({
               id="taxIdType"
               name="taxIdType"
               className="input"
-              defaultValue={values.taxIdType}
+              defaultValue={prefill(state, "taxIdType", values.taxIdType)}
             >
               {TAX_ID_TYPES.map((t) => (
                 <option key={t} value={t}>
@@ -173,7 +177,10 @@ export function CustomerForm({
             label="NIF / CIF / VAT"
             htmlFor="taxId"
             error={errors.taxId}
-            hint={warning ?? "Se comprueba el dígito de control, pero no es obligatorio."}
+            hint={
+              warning ??
+              "Se comprueba el dígito de control, pero no es obligatorio."
+            }
           >
             <input
               id="taxId"
@@ -193,24 +200,33 @@ export function CustomerForm({
           <h2 className="card-title">Contacto</h2>
         </div>
         <div className="card-body grid gap-4 sm:grid-cols-3">
-          <Field label="Correo electrónico" htmlFor="email" error={errors.email}>
+          <Field
+            label="Correo electrónico"
+            htmlFor="email"
+            error={errors.email}
+          >
             <input
               id="email"
               name="email"
               type="email"
               className={`input ${errors.email ? "input-error" : ""}`}
-              defaultValue={values.email ?? ""}
+              defaultValue={prefill(state, "email", values.email ?? "")}
             />
           </Field>
           <Field label="Teléfono" htmlFor="phone">
-            <input id="phone" name="phone" className="input" defaultValue={values.phone ?? ""} />
+            <input
+              id="phone"
+              name="phone"
+              className="input"
+              defaultValue={prefill(state, "phone", values.phone ?? "")}
+            />
           </Field>
           <Field label="Web" htmlFor="website">
             <input
               id="website"
               name="website"
               className="input"
-              defaultValue={values.website ?? ""}
+              defaultValue={prefill(state, "website", values.website ?? "")}
               placeholder="https://"
             />
           </Field>
@@ -236,7 +252,11 @@ export function CustomerForm({
                 min={0}
                 max={365}
                 className={`input-number ${errors.paymentTermsDays ? "input-error" : ""}`}
-                defaultValue={values.paymentTermsDays}
+                defaultValue={prefill(
+                  state,
+                  "paymentTermsDays",
+                  values.paymentTermsDays,
+                )}
               />
             </Field>
 
@@ -245,7 +265,11 @@ export function CustomerForm({
                 id="defaultVatRate"
                 name="defaultVatRate"
                 className="input"
-                defaultValue={values.defaultVatRate}
+                defaultValue={prefill(
+                  state,
+                  "defaultVatRate",
+                  values.defaultVatRate,
+                )}
               >
                 {VAT_RATES.map((rate) => (
                   <option key={rate} value={rate}>
@@ -264,9 +288,13 @@ export function CustomerForm({
                 id="withholdingRate"
                 name="withholdingRate"
                 className="input-number"
-                defaultValue={
-                  values.withholdingRate === 0 ? "0" : formatRate(values.withholdingRate).replace("%", "")
-                }
+                defaultValue={prefill(
+                  state,
+                  "withholdingRate",
+                  values.withholdingRate === 0
+                    ? "0"
+                    : formatRate(values.withholdingRate).replace("%", ""),
+                )}
                 placeholder="0"
               />
             </Field>
@@ -284,7 +312,8 @@ export function CustomerForm({
               <span>
                 Operaciones exentas de IVA
                 <span className="block text-xs text-slate-500">
-                  Exportación, entrega intracomunitaria, inversión del sujeto pasivo…
+                  Exportación, entrega intracomunitaria, inversión del sujeto
+                  pasivo…
                 </span>
               </span>
             </label>
@@ -299,7 +328,11 @@ export function CustomerForm({
                   id="vatExemptReason"
                   name="vatExemptReason"
                   className="input"
-                  defaultValue={values.vatExemptReason ?? ""}
+                  defaultValue={prefill(
+                    state,
+                    "vatExemptReason",
+                    values.vatExemptReason ?? "",
+                  )}
                   placeholder="Art. 25 Ley 37/1992 — entrega intracomunitaria"
                 />
               </Field>
@@ -318,15 +351,24 @@ export function CustomerForm({
             htmlFor="tags"
             hint="Separadas por comas: rotulación, textil, recurrente…"
           >
-            <input id="tags" name="tags" className="input" defaultValue={values.tags ?? ""} />
+            <input
+              id="tags"
+              name="tags"
+              className="input"
+              defaultValue={prefill(state, "tags", values.tags ?? "")}
+            />
           </Field>
-          <Field label="Notas" htmlFor="notes" hint="No se imprimen en los documentos.">
+          <Field
+            label="Notas"
+            htmlFor="notes"
+            hint="No se imprimen en los documentos."
+          >
             <textarea
               id="notes"
               name="notes"
               rows={4}
               className="input"
-              defaultValue={values.notes ?? ""}
+              defaultValue={prefill(state, "notes", values.notes ?? "")}
             />
           </Field>
           <label className="flex items-center gap-2.5 text-sm text-slate-700">
@@ -334,7 +376,7 @@ export function CustomerForm({
               type="checkbox"
               name="active"
               className="h-4 w-4 rounded border-slate-300"
-              defaultChecked={values.active}
+              defaultChecked={prefillChecked(state, "active", values.active)}
             />
             Cliente activo
           </label>

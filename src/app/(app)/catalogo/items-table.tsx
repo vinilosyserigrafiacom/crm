@@ -10,7 +10,7 @@ import {
   marginBasisPoints,
 } from "@/lib/money";
 import { ITEM_KINDS } from "@/lib/validation";
-import type { FormState } from "@/lib/form";
+import { prefill, prefillChecked, type FormState } from "@/lib/form";
 
 export interface ItemRow {
   id: string;
@@ -58,43 +58,67 @@ function ItemForm({
       <ErrorBanner message={state.error} />
 
       <div className="grid gap-3 sm:grid-cols-6">
-        <Field label="Referencia" htmlFor="item-sku" error={errors.sku} required className="sm:col-span-2">
+        <Field
+          label="Referencia"
+          htmlFor="item-sku"
+          error={errors.sku}
+          required
+          className="sm:col-span-2"
+        >
           <input
             id="item-sku"
             name="sku"
             className={`input font-mono uppercase ${errors.sku ? "input-error" : ""}`}
-            defaultValue={item?.sku ?? ""}
+            defaultValue={prefill(state, "sku", item?.sku ?? "")}
             required
             maxLength={40}
             autoFocus
           />
         </Field>
-        <Field label="Nombre" htmlFor="item-name" error={errors.name} required className="sm:col-span-4">
+        <Field
+          label="Nombre"
+          htmlFor="item-name"
+          error={errors.name}
+          required
+          className="sm:col-span-4"
+        >
           <input
             id="item-name"
             name="name"
             className={`input ${errors.name ? "input-error" : ""}`}
-            defaultValue={item?.name ?? ""}
+            defaultValue={prefill(state, "name", item?.name ?? "")}
             required
           />
         </Field>
 
-        <Field label="Descripción" htmlFor="item-desc" className="sm:col-span-6">
+        <Field
+          label="Descripción"
+          htmlFor="item-desc"
+          className="sm:col-span-6"
+        >
           <input
             id="item-desc"
             name="description"
             className="input"
-            defaultValue={item?.description ?? ""}
+            defaultValue={prefill(
+              state,
+              "description",
+              item?.description ?? "",
+            )}
             placeholder="Detalle que se arrastra a la línea del presupuesto"
           />
         </Field>
 
-        <Field label="Familia" htmlFor="item-category" className="sm:col-span-2">
+        <Field
+          label="Familia"
+          htmlFor="item-category"
+          className="sm:col-span-2"
+        >
           <input
             id="item-category"
             name="category"
             className="input"
-            defaultValue={item?.category ?? ""}
+            defaultValue={prefill(state, "category", item?.category ?? "")}
             list="item-categories"
             placeholder="Vinilo, serigrafía…"
           />
@@ -106,7 +130,12 @@ function ItemForm({
         </Field>
 
         <Field label="Tipo" htmlFor="item-kind">
-          <select id="item-kind" name="kind" className="input" defaultValue={item?.kind ?? "SERVICE"}>
+          <select
+            id="item-kind"
+            name="kind"
+            className="input"
+            defaultValue={prefill(state, "kind", item?.kind ?? "SERVICE")}
+          >
             {ITEM_KINDS.map((kind) => (
               <option key={kind} value={kind}>
                 {KIND_LABELS[kind]}
@@ -120,7 +149,7 @@ function ItemForm({
             id="item-unit"
             name="unit"
             className="input"
-            defaultValue={item?.unit ?? "ud"}
+            defaultValue={prefill(state, "unit", item?.unit ?? "ud")}
             list="item-units"
             maxLength={16}
           />
@@ -136,7 +165,11 @@ function ItemForm({
             id="item-price"
             name="unitPrice"
             className="input-number"
-            defaultValue={item ? centsToInput(item.unitPrice) : ""}
+            defaultValue={prefill(
+              state,
+              "unitPrice",
+              item ? centsToInput(item.unitPrice) : "",
+            )}
             inputMode="decimal"
             placeholder="0,00"
           />
@@ -147,7 +180,11 @@ function ItemForm({
             id="item-cost"
             name="unitCost"
             className="input-number"
-            defaultValue={item ? centsToInput(item.unitCost) : ""}
+            defaultValue={prefill(
+              state,
+              "unitCost",
+              item ? centsToInput(item.unitCost) : "",
+            )}
             inputMode="decimal"
             placeholder="0,00"
           />
@@ -158,7 +195,7 @@ function ItemForm({
             id="item-vat"
             name="vatRate"
             className="input"
-            defaultValue={item?.vatRate ?? 2100}
+            defaultValue={prefill(state, "vatRate", item?.vatRate ?? 2100)}
           >
             {VAT_RATES.map((rate) => (
               <option key={rate} value={rate}>
@@ -174,7 +211,7 @@ function ItemForm({
           type="checkbox"
           name="active"
           className="h-4 w-4 rounded border-slate-300"
-          defaultChecked={item?.active ?? true}
+          defaultChecked={prefillChecked(state, "active", item?.active ?? true)}
         />
         Disponible en el editor de presupuestos
       </label>
@@ -209,7 +246,11 @@ export function ItemsTable({
       <div className="card-header">
         <h2 className="card-title">{items.length} artículos</h2>
         {editing !== "new" && (
-          <button type="button" className="btn-primary btn-sm" onClick={() => setEditing("new")}>
+          <button
+            type="button"
+            className="btn-primary btn-sm"
+            onClick={() => setEditing("new")}
+          >
             Nuevo artículo
           </button>
         )}
@@ -228,7 +269,8 @@ export function ItemsTable({
 
       {items.length === 0 ? (
         <p className="empty">
-          El catálogo está vacío. Añade los trabajos que más repites para no teclearlos cada vez.
+          El catálogo está vacío. Añade los trabajos que más repites para no
+          teclearlos cada vez.
         </p>
       ) : (
         <div className="table-wrap">
@@ -268,11 +310,17 @@ export function ItemsTable({
                   <tr key={item.id} className={item.active ? "" : "opacity-60"}>
                     <td className="font-mono text-xs">{item.sku}</td>
                     <td>
-                      <span className="font-medium text-slate-900">{item.name}</span>
+                      <span className="font-medium text-slate-900">
+                        {item.name}
+                      </span>
                       {item.description && (
-                        <span className="block text-xs text-slate-500">{item.description}</span>
+                        <span className="block text-xs text-slate-500">
+                          {item.description}
+                        </span>
                       )}
-                      {!item.active && <span className="pill-slate mt-1">Desactivado</span>}
+                      {!item.active && (
+                        <span className="pill-slate mt-1">Desactivado</span>
+                      )}
                     </td>
                     <td className="text-xs">{item.category ?? "—"}</td>
                     <td className="text-xs">{item.unit}</td>
@@ -281,7 +329,9 @@ export function ItemsTable({
                       {item.unitCost > 0 ? formatCents(item.unitCost) : "—"}
                     </td>
                     <td className="num text-xs">
-                      {margin === null || item.unitCost === 0 ? "—" : formatRate(margin)}
+                      {margin === null || item.unitCost === 0
+                        ? "—"
+                        : formatRate(margin)}
                     </td>
                     <td className="text-xs">{formatRate(item.vatRate)}</td>
                     <td>

@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { ErrorBanner, Field, SubmitButton } from "@/components/ui";
-import type { FormState } from "@/lib/form";
+import { prefill, prefillChecked, type FormState } from "@/lib/form";
 
 export interface ContactRow {
   id: string;
@@ -41,12 +41,17 @@ function ContactForm({
       <ErrorBanner message={state.error} />
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Nombre" htmlFor="contact-name" error={errors.name} required>
+        <Field
+          label="Nombre"
+          htmlFor="contact-name"
+          error={errors.name}
+          required
+        >
           <input
             id="contact-name"
             name="name"
             className={`input ${errors.name ? "input-error" : ""}`}
-            defaultValue={contact?.name ?? ""}
+            defaultValue={prefill(state, "name", contact?.name ?? "")}
             required
             autoFocus
           />
@@ -56,7 +61,7 @@ function ContactForm({
             id="contact-job"
             name="jobTitle"
             className="input"
-            defaultValue={contact?.jobTitle ?? ""}
+            defaultValue={prefill(state, "jobTitle", contact?.jobTitle ?? "")}
             placeholder="Compras, diseño, gerencia…"
           />
         </Field>
@@ -66,7 +71,7 @@ function ContactForm({
             name="email"
             type="email"
             className="input"
-            defaultValue={contact?.email ?? ""}
+            defaultValue={prefill(state, "email", contact?.email ?? "")}
           />
         </Field>
         <Field label="Teléfono" htmlFor="contact-phone">
@@ -74,7 +79,7 @@ function ContactForm({
             id="contact-phone"
             name="phone"
             className="input"
-            defaultValue={contact?.phone ?? ""}
+            defaultValue={prefill(state, "phone", contact?.phone ?? "")}
           />
         </Field>
       </div>
@@ -84,7 +89,7 @@ function ContactForm({
           id="contact-notes"
           name="notes"
           className="input"
-          defaultValue={contact?.notes ?? ""}
+          defaultValue={prefill(state, "notes", contact?.notes ?? "")}
         />
       </Field>
 
@@ -93,7 +98,11 @@ function ContactForm({
           type="checkbox"
           name="isPrimary"
           className="h-4 w-4 rounded border-slate-300"
-          defaultChecked={contact?.isPrimary ?? false}
+          defaultChecked={prefillChecked(
+            state,
+            "isPrimary",
+            contact?.isPrimary ?? false,
+          )}
         />
         Contacto principal
       </label>
@@ -127,7 +136,11 @@ export function ContactsCard({
       <div className="card-header">
         <h2 className="card-title">Contactos</h2>
         {editing !== "new" && (
-          <button type="button" className="btn-secondary btn-sm" onClick={() => setEditing("new")}>
+          <button
+            type="button"
+            className="btn-secondary btn-sm"
+            onClick={() => setEditing("new")}
+          >
             Añadir contacto
           </button>
         )}
@@ -141,39 +154,60 @@ export function ContactsCard({
         )}
 
         {editing === "new" && (
-          <ContactForm contact={null} save={save} onDone={() => setEditing(null)} />
+          <ContactForm
+            contact={null}
+            save={save}
+            onDone={() => setEditing(null)}
+          />
         )}
 
         <ul className="divide-y divide-slate-100">
           {contacts.map((contact) =>
             editing === contact.id ? (
               <li key={contact.id} className="py-3">
-                <ContactForm contact={contact} save={save} onDone={() => setEditing(null)} />
+                <ContactForm
+                  contact={contact}
+                  save={save}
+                  onDone={() => setEditing(null)}
+                />
               </li>
             ) : (
-              <li key={contact.id} className="flex flex-wrap items-start gap-3 py-3">
+              <li
+                key={contact.id}
+                className="flex flex-wrap items-start gap-3 py-3"
+              >
                 <div className="min-w-0 flex-1">
                   <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-900">
                     {contact.name}
-                    {contact.isPrimary && <span className="pill-green">Principal</span>}
+                    {contact.isPrimary && (
+                      <span className="pill-green">Principal</span>
+                    )}
                   </p>
                   {contact.jobTitle && (
                     <p className="text-xs text-slate-500">{contact.jobTitle}</p>
                   )}
                   <p className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
                     {contact.email && (
-                      <a href={`mailto:${contact.email}`} className="hover:underline">
+                      <a
+                        href={`mailto:${contact.email}`}
+                        className="hover:underline"
+                      >
                         {contact.email}
                       </a>
                     )}
                     {contact.phone && (
-                      <a href={`tel:${contact.phone}`} className="hover:underline">
+                      <a
+                        href={`tel:${contact.phone}`}
+                        className="hover:underline"
+                      >
                         {contact.phone}
                       </a>
                     )}
                   </p>
                   {contact.notes && (
-                    <p className="mt-1 text-xs text-slate-500">{contact.notes}</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {contact.notes}
+                    </p>
                   )}
                 </div>
 
